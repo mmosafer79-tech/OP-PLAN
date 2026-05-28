@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OP-Planung · Klinikum Traunstein</title>
+<style>
+:root {
+  --navy: #0a2240;
+  --navy-mid: #1a3a5c;
+  --navy-light: #2a5080;
+  --gold: #c9a84c;
+  --gold-light: #e8c97a;
+  --bg: #f4f6f9;
+  --surface: #ffffff;
+  --border: #dde3ec;
+  --border-strong: #b8c4d4;
+  --text: #0a2240;
+  --text-muted: #5a7090;
+  --text-faint: #8fa0b8;
+  --green: #0f6e56; --green-bg: #e1f5ee; --green-chip: #9fe1cb;
+  --blue: #185fa5; --blue-bg: #e6f1fb; --blue-chip: #b5d4f4;
+  --gray: #5f5e5a; --gray-bg: #f1efe8; --gray-chip: #d3d1c7;
+  --red: #a32d2d; --red-bg: #fcebeb; --red-chip: #f7c1c1;
+  --amber: #854f0b; --amber-bg: #faeeda; --amber-chip: #fac775;
+  --radius: 10px;
+  --radius-sm: 6px;
+  --shadow: 0 2px 12px rgba(10,34,64,0.08);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px}
+
+/* HEADER */
+.header{background:var(--navy);color:#fff;padding:0 2rem;display:flex;align-items:center;justify-content:space-between;height:56px;position:sticky;top:0;z-index:50;box-shadow:0 2px 8px rgba(10,34,64,0.25)}
+.header-brand{display:flex;align-items:center;gap:12px}
+.header-logo{width:32px;height:32px;border-radius:50%;background:var(--gold);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--navy);letter-spacing:-0.5px;flex-shrink:0}
+.header h1{font-size:15px;font-weight:600;color:#fff;letter-spacing:0.01em}
+.header-sub{font-size:11px;color:rgba(255,255,255,0.55);margin-top:1px}
+.header-actions{display:flex;gap:8px;align-items:center}
+.hbtn{padding:6px 14px;font-size:12px;border-radius:var(--radius-sm);cursor:pointer;font-weight:500;display:flex;align-items:center;gap:5px;white-space:nowrap;border:1px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.08);color:#fff;transition:background 0.15s}
+.hbtn:hover{background:rgba(255,255,255,0.18)}
+.hbtn.gold{background:var(--gold);color:var(--navy);border-color:var(--gold)}
+.hbtn.gold:hover{background:var(--gold-light)}
+
+/* TOOLBAR */
+.toolbar{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 2rem;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.view-tabs{display:flex;gap:2px;background:var(--bg);border-radius:var(--radius-sm);padding:2px}
+.view-tab{padding:5px 14px;font-size:12px;font-weight:500;border:none;background:transparent;border-radius:4px;cursor:pointer;color:var(--text-muted);transition:all 0.15s}
+.view-tab.active{background:var(--surface);color:var(--navy);box-shadow:0 1px 4px rgba(10,34,64,0.1)}
+.nav-group{display:flex;align-items:center;gap:6px}
+.nav-btn{width:30px;height:30px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);cursor:pointer;font-size:14px;color:var(--text-muted);transition:background 0.1s}
+.nav-btn:hover{background:var(--bg)}
+.period-label{font-size:14px;font-weight:600;min-width:200px;text-align:center;color:var(--navy)}
+.filter-select{padding:5px 10px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);cursor:pointer}
+.search-input{padding:5px 10px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);width:180px}
+.search-input:focus{outline:none;border-color:var(--navy)}
+.spacer{flex:1}
+
+/* SUMMARY CARDS */
+.stats-row{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;padding:1.25rem 2rem 0}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;display:flex;align-items:center;gap:12px}
+.stat-icon{width:38px;height:38px;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.stat-val{font-size:22px;font-weight:700;color:var(--navy);line-height:1}
+.stat-lbl{font-size:11px;color:var(--text-muted);margin-top:3px}
+
+/* CALENDAR */
+.cal-wrap{padding:1.25rem 2rem 2rem}
+.cal-grid{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
+.day-headers{display:grid;grid-template-columns:repeat(7,1fr);background:var(--navy);color:#fff}
+.dh{padding:9px 8px;text-align:center;font-size:11px;font-weight:600;letter-spacing:0.08em;opacity:0.85}
+.cells{display:grid;grid-template-columns:repeat(7,1fr)}
+.cell{min-height:110px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);padding:6px;cursor:pointer;transition:background 0.1s;position:relative}
+.cell:nth-child(7n){border-right:none}
+.cell:hover{background:var(--bg)}
+.cell.other{opacity:0.38;background:#fafafa}
+.cell.today{background:#fffbf0}
+.cell.today .dn{background:var(--gold);color:var(--navy);border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-weight:700}
+.cell.weekend .dn{color:var(--text-faint)}
+.dn{font-size:12px;font-weight:500;color:var(--text-muted);margin-bottom:4px;display:inline-block;width:22px;height:22px;line-height:22px;text-align:center}
+.chip{font-size:11px;padding:3px 7px;border-radius:4px;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;display:flex;align-items:center;gap:4px;border:none;width:100%;text-align:left;line-height:1.3}
+.chip:hover{filter:brightness(0.92)}
+.chip svg{flex-shrink:0;width:9px;height:9px}
+.s-geplant{background:var(--blue-chip);color:var(--blue)}
+.s-bestaetigt{background:var(--green-chip);color:var(--green)}
+.s-fertig{background:var(--gray-chip);color:var(--gray)}
+.s-abgesagt{background:var(--red-chip);color:var(--red)}
+.s-dringlich{background:var(--amber-chip);color:var(--amber)}
+.more{font-size:11px;color:var(--text-faint);padding:1px 3px}
+
+/* WEEK VIEW */
+.week-grid{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
+.week-header-row{display:grid;grid-template-columns:60px repeat(5,1fr);background:var(--navy);color:#fff}
+.wh-empty{border-right:1px solid rgba(255,255,255,0.1)}
+.wh{padding:10px 8px;text-align:center;border-right:1px solid rgba(255,255,255,0.1)}
+.wh:last-child{border-right:none}
+.wh-day{font-size:13px;font-weight:600}
+.wh-date{font-size:11px;opacity:0.6;margin-top:2px}
+.wh.today-col{background:rgba(201,168,76,0.2)}
+.week-body{display:grid;grid-template-columns:60px repeat(5,1fr)}
+.time-col{border-right:1px solid var(--border)}
+.time-slot{height:60px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:center;padding-top:4px;font-size:10px;color:var(--text-faint);font-weight:500}
+.day-col{border-right:1px solid var(--border);position:relative;min-height:780px}
+.day-col:last-child{border-right:none}
+.day-col-inner{position:relative;height:780px}
+.week-chip{position:absolute;left:4px;right:4px;border-radius:var(--radius-sm);padding:4px 7px;font-size:11px;cursor:pointer;overflow:hidden;border:none;text-align:left;line-height:1.4;z-index:2}
+.week-chip:hover{filter:brightness(0.92);z-index:3}
+.week-chip .wc-proc{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.week-chip .wc-pat{opacity:0.75;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.week-chip .wc-dur{opacity:0.65;font-size:10px}
+
+/* LEGEND */
+.legend{display:flex;gap:16px;flex-wrap:wrap;padding:0 2rem 1rem;align-items:center}
+.li{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-muted)}
+.ld{width:12px;height:12px;border-radius:3px}
+
+/* MODAL */
+.overlay{display:none;position:fixed;inset:0;background:rgba(10,34,64,0.4);z-index:200;align-items:center;justify-content:center;padding:1rem}
+.overlay.open{display:flex}
+.modal{background:var(--surface);border-radius:var(--radius);box-shadow:0 8px 40px rgba(10,34,64,0.18);width:100%;max-width:680px;max-height:92vh;overflow-y:auto;display:flex;flex-direction:column}
+.modal-hdr{display:flex;align-items:center;justify-content:space-between;padding:1.1rem 1.4rem;border-bottom:1px solid var(--border);background:var(--navy);border-radius:var(--radius) var(--radius) 0 0}
+.modal-hdr h2{font-size:15px;font-weight:600;color:#fff}
+.modal-close{background:none;border:none;cursor:pointer;color:rgba(255,255,255,0.7);font-size:22px;line-height:1;padding:2px 6px}
+.modal-close:hover{color:#fff}
+.modal-body{padding:1.2rem 1.4rem;display:grid;grid-template-columns:1fr 1fr;gap:14px;overflow-y:auto}
+.f{display:flex;flex-direction:column;gap:4px}
+.f.full{grid-column:1/-1}
+.f.third{grid-column:span 1}
+.f label{font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em}
+.f input,.f select,.f textarea{padding:8px 10px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);transition:border-color 0.15s;font-family:inherit}
+.f input:focus,.f select:focus,.f textarea:focus{outline:none;border-color:var(--navy)}
+.f textarea{resize:vertical;min-height:64px}
+.section-divider{grid-column:1/-1;padding:6px 0 2px;font-size:11px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:0.08em;border-bottom:1px solid var(--border);margin-top:4px}
+.modal-ftr{padding:1rem 1.4rem;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:8px}
+.btn-del{padding:8px 14px;font-size:12px;border:1px solid var(--red-chip);border-radius:var(--radius-sm);background:var(--red-bg);color:var(--red);cursor:pointer;font-weight:500}
+.btn-del:hover{background:var(--red-chip)}
+.btn-cancel{padding:8px 14px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text-muted);cursor:pointer}
+.btn-cancel:hover{background:var(--bg)}
+.btn-save{padding:8px 20px;font-size:13px;border:none;border-radius:var(--radius-sm);background:var(--navy);color:#fff;cursor:pointer;font-weight:600}
+.btn-save:hover{background:var(--navy-light)}
+.icd-row{display:flex;gap:6px;align-items:flex-end}
+.icd-row input{flex:1}
+.icd-row button{padding:8px 12px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);cursor:pointer;white-space:nowrap;color:var(--text-muted)}
+.icd-row button:hover{background:var(--border)}
+
+/* PRINT */
+@media print {
+  .header,.toolbar,.stats-row,.legend,.overlay,
+  .hbtn,.nav-btn,.view-tabs,.filter-select,.search-input,
+  .modal,.toolbar .spacer{display:none!important}
+  body{background:#fff}
+  .cal-wrap{padding:0}
+  .cell{min-height:80px}
+  @page{size:A4 landscape;margin:1.5cm}
+}
+
+/* DETAIL PANEL */
+.detail-panel{position:fixed;right:0;top:56px;bottom:0;width:340px;background:var(--surface);border-left:1px solid var(--border);box-shadow:-4px 0 20px rgba(10,34,64,0.1);z-index:40;display:none;flex-direction:column;overflow-y:auto}
+.detail-panel.open{display:flex}
+.dp-hdr{background:var(--navy);color:#fff;padding:1rem 1.2rem;display:flex;justify-content:space-between;align-items:flex-start}
+.dp-title{font-size:14px;font-weight:600;line-height:1.4}
+.dp-sub{font-size:11px;opacity:0.65;margin-top:3px}
+.dp-close{background:none;border:none;color:rgba(255,255,255,0.7);cursor:pointer;font-size:20px;line-height:1}
+.dp-body{padding:1rem 1.2rem;flex:1}
+.dp-row{margin-bottom:14px}
+.dp-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-faint);margin-bottom:3px}
+.dp-val{font-size:13px;color:var(--text)}
+.dp-val.empty{color:var(--text-faint);font-style:italic}
+.dp-badge{display:inline-block;padding:3px 10px;border-radius:100px;font-size:11px;font-weight:600}
+.dp-actions{padding:1rem 1.2rem;border-top:1px solid var(--border);display:flex;gap:8px}
+.dp-btn{flex:1;padding:8px;font-size:12px;border-radius:var(--radius-sm);cursor:pointer;font-weight:500;text-align:center}
+.dp-edit{background:var(--navy);color:#fff;border:none}
+.dp-edit:hover{background:var(--navy-light)}
+.dp-del{background:var(--red-bg);color:var(--red);border:1px solid var(--red-chip)}
+.dp-del:hover{background:var(--red-chip)}
+
+/* STATUS BADGES */
+.badge-geplant{background:var(--blue-bg);color:var(--blue)}
+.badge-bestaetigt{background:var(--green-bg);color:var(--green)}
+.badge-fertig{background:var(--gray-bg);color:var(--gray)}
+.badge-abgesagt{background:var(--red-bg);color:var(--red)}
+.badge-notfall{background:#fff3e0;color:#e65100}
+.badge-dringlich{background:var(--amber-bg);color:var(--amber)}
+.badge-elektiv{background:var(--bg);color:var(--text-muted)}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="header">
+  <div class="header-brand">
+    <div class="header-logo">MS</div>
+    <div>
+      <div class="header h1" style="font-size:15px;font-weight:600;color:#fff">OP-Planung</div>
+      <div class="header-sub">Klinikum Traunstein · Pädiatrische Orthopädie & Skoliose</div>
+    </div>
+  </div>
+  <div class="header-actions">
+    <button class="hbtn" onclick="exportCSV()">⬇ CSV Export</button>
+    <button class="hbtn" onclick="printPlan()">🖨 Drucken</button>
+    <button class="hbtn gold" onclick="openNew()">＋ OP eintragen</button>
+  </div>
+</header>
+
+<!-- TOOLBAR -->
+<div class="toolbar">
+  <div class="view-tabs">
+    <button class="view-tab active" id="tab-monat" onclick="setView('monat')">Monat</button>
+    <button class="view-tab" id="tab-woche" onclick="setView('woche')">Woche</button>
+  </div>
+  <div class="nav-group">
+    <button class="nav-btn" onclick="navBack()">&#8249;</button>
+    <span class="period-label" id="periodLabel"></span>
+    <button class="nav-btn" onclick="navFwd()">&#8250;</button>
+  </div>
+  <button class="nav-btn" style="font-size:11px;width:auto;padding:0 10px;color:var(--text-muted)" onclick="goToday()">Heute</button>
+  <span class="spacer"></span>
+  <input class="search-input" type="text" placeholder="🔍 Suche Patient, Diagnose…" id="searchInput" oninput="render()">
+  <select class="filter-select" id="filterStatus" onchange="render()">
+    <option value="">Alle Status</option>
+    <option value="geplant">Geplant</option>
+    <option value="bestaetigt">Bestätigt</option>
+    <option value="fertig">Durchgeführt</option>
+    <option value="abgesagt">Abgesagt</option>
+  </select>
+  <select class="filter-select" id="filterSaal" onchange="render()">
+    <option value="">Alle Säle</option>
+    <option>Saal 1</option>
+    <option>Saal 2</option>
+    <option>Saal 3</option>
+    <option>Tagesklinik</option>
+  </select>
+</div>
+
+<!-- STATS -->
+<div class="stats-row" id="statsRow"></div>
+
+<!-- CALENDAR -->
+<div class="cal-wrap" id="calWrap"></div>
+
+<!-- LEGEND -->
+<div class="legend">
+  <div class="li"><div class="ld" style="background:var(--blue-chip)"></div>Geplant</div>
+  <div class="li"><div class="ld" style="background:var(--green-chip)"></div>Bestätigt</div>
+  <div class="li"><div class="ld" style="background:var(--gray-chip)"></div>Durchgeführt</div>
+  <div class="li"><div class="ld" style="background:var(--red-chip)"></div>Abgesagt</div>
+  <div class="li"><div class="ld" style="background:var(--amber-chip)"></div>Dringlich / Notfall</div>
+</div>
+
+<!-- DETAIL PANEL -->
+<div class="detail-panel" id="detailPanel">
+  <div class="dp-hdr">
+    <div>
+      <div class="dp-title" id="dp-proc">–</div>
+      <div class="dp-sub" id="dp-date">–</div>
+    </div>
+    <button class="dp-close" onclick="closeDetail()">✕</button>
+  </div>
+  <div class="dp-body" id="dp-body"></div>
+  <div class="dp-actions">
+    <button class="dp-btn dp-edit" id="dp-edit-btn" onclick="editFromPanel()">✏ Bearbeiten</button>
+    <button class="dp-btn dp-del" id="dp-del-btn" onclick="deleteFromPanel()">🗑 Löschen</button>
+  </div>
+</div>
+
+<!-- OP MODAL -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <div class="modal-hdr">
+      <h2 id="modalTitle">OP eintragen</h2>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <!-- Basis -->
+      <div class="section-divider">Termin & Patient</div>
+      <div class="f">
+        <label>Datum *</label>
+        <input type="date" id="f_datum">
+      </div>
+      <div class="f">
+        <label>Uhrzeit</label>
+        <input type="time" id="f_uhrzeit" value="08:00">
+      </div>
+      <div class="f full">
+        <label>Patienten-ID / Kürzel (kein Klarname)</label>
+        <input type="text" id="f_patient" placeholder="z.B. M.K. *2014 oder #1042">
+      </div>
+      <div class="f full">
+        <label>Diagnose / Indikation</label>
+        <input type="text" id="f_diagnose" placeholder="z.B. Idiopathische Skoliose AIS Cobb 52°, LKS">
+      </div>
+
+      <!-- ICD / OPS -->
+      <div class="section-divider">Kodierung</div>
+      <div class="f">
+        <label>ICD-10 Code</label>
+        <div class="icd-row">
+          <input type="text" id="f_icd" placeholder="z.B. M41.10">
+          <button onclick="lookupICD()">Suchen</button>
+        </div>
+      </div>
+      <div class="f">
+        <label>ICD-10 Bezeichnung</label>
+        <input type="text" id="f_icd_text" placeholder="wird automatisch befüllt">
+      </div>
+      <div class="f">
+        <label>OPS Code</label>
+        <input type="text" id="f_ops" placeholder="z.B. 5-835.50">
+      </div>
+      <div class="f">
+        <label>OPS Bezeichnung</label>
+        <input type="text" id="f_ops_text" placeholder="z.B. Dorsale Spondylodese T4–L2">
+      </div>
+
+      <!-- OP -->
+      <div class="section-divider">Eingriff</div>
+      <div class="f full">
+        <label>Prozedur / Eingriff *</label>
+        <input type="text" id="f_prozedur" placeholder="z.B. Dorsale Spondylodese T4–L2, MAGEC-Rod-Verlängerung">
+      </div>
+      <div class="f">
+        <label>Seite</label>
+        <select id="f_seite">
+          <option value="">–</option>
+          <option>Links</option><option>Rechts</option><option>Bilateral</option><option>Medial</option><option>k.A.</option>
+        </select>
+      </div>
+      <div class="f">
+        <label>Geplante Dauer (Min.)</label>
+        <input type="number" id="f_dauer" placeholder="120" min="15" step="15">
+      </div>
+      <div class="f">
+        <label>OP-Saal</label>
+        <select id="f_saal">
+          <option value="">–</option>
+          <option>Saal 1</option><option>Saal 2</option><option>Saal 3</option><option>Tagesklinik</option>
+        </select>
+      </div>
+      <div class="f">
+        <label>Anästhesie</label>
+        <select id="f_anaesthesie">
+          <option value="">–</option>
+          <option>ITN</option><option>Spinalanästhesie</option><option>Regionalanästhesie</option>
+          <option>Lokalanästhesie</option><option>TIVA</option>
+        </select>
+      </div>
+      <div class="f full">
+        <label>Implantate / Material</label>
+        <input type="text" id="f_implantate" placeholder="z.B. MAGEC 5.5mm, Schrauben USS II, Chêneau-Korsett">
+      </div>
+
+      <!-- Personal -->
+      <div class="section-divider">Team</div>
+      <div class="f">
+        <label>Operateur 1</label>
+        <input type="text" id="f_op1" placeholder="Dr. Mosafer" value="Dr. Mosafer">
+      </div>
+      <div class="f">
+        <label>Operateur 2 / Assistent</label>
+        <input type="text" id="f_op2" placeholder="z.B. OA Dr. Müller">
+      </div>
+      <div class="f">
+        <label>Anästhesist</label>
+        <input type="text" id="f_anaest" placeholder="z.B. Dr. Schmidt">
+      </div>
+      <div class="f">
+        <label>OP-Pflege / Springer</label>
+        <input type="text" id="f_pflege" placeholder="z.B. Schwester Maria">
+      </div>
+
+      <!-- Status -->
+      <div class="section-divider">Status & Priorität</div>
+      <div class="f">
+        <label>Status</label>
+        <select id="f_status">
+          <option value="geplant">Geplant</option>
+          <option value="bestaetigt">Bestätigt</option>
+          <option value="fertig">Durchgeführt</option>
+          <option value="abgesagt">Abgesagt</option>
+        </select>
+      </div>
+      <div class="f">
+        <label>Priorität</label>
+        <select id="f_prioritaet">
+          <option value="elektiv">Elektiv</option>
+          <option value="dringlich">Dringlich</option>
+          <option value="notfall">Notfall</option>
+        </select>
+      </div>
+      <div class="f full">
+        <label>Neuromonitoring / Besonderheiten</label>
+        <input type="text" id="f_monitoring" placeholder="z.B. MEP/SEP, Blutkonserven bereitstellen, Lagerung Bauch">
+      </div>
+      <div class="f full">
+        <label>Notizen (intern)</label>
+        <textarea id="f_notiz" placeholder="z.B. Eltern informiert, präop. Labor ausstehend, Allergien beachten…"></textarea>
+      </div>
+    </div>
+    <div class="modal-ftr">
+      <button class="btn-del" id="btnDelete" style="display:none" onclick="deleteOP()">🗑 Löschen</button>
+      <div style="display:flex;gap:8px;margin-left:auto">
+        <button class="btn-cancel" onclick="closeModal()">Abbrechen</button>
+        <button class="btn-save" onclick="saveOP()">✓ Speichern</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const STORE_KEY = 'op_plan_v2';
+let ops = JSON.parse(localStorage.getItem(STORE_KEY) || '[]');
+let viewMode = 'monat';
+let curYear, curMonth, curWeekStart;
+let editingId = null;
+let detailId = null;
+
+const MONTHS = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+const DAYS_SHORT = ['Mo','Di','Mi','Do','Fr','Sa','So'];
+
+function save(){ localStorage.setItem(STORE_KEY, JSON.stringify(ops)); }
+
+function init(){
+  const n = new Date();
+  curYear = n.getFullYear();
+  curMonth = n.getMonth();
+  curWeekStart = getWeekStart(n);
+  render();
+}
+
+function getWeekStart(d){
+  const dt = new Date(d);
+  const dow = dt.getDay();
+  const diff = (dow === 0 ? -6 : 1 - dow);
+  dt.setDate(dt.getDate() + diff);
+  dt.setHours(0,0,0,0);
+  return dt;
+}
+
+function setView(v){
+  viewMode = v;
+  document.querySelectorAll('.view-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-'+v).classList.add('active');
+  render();
+}
+
+function navBack(){ if(viewMode==='monat'){curMonth--;if(curMonth<0){curMonth=11;curYear--;}}else{curWeekStart=new Date(curWeekStart.getTime()-7*86400000);}render(); }
+function navFwd(){  if(viewMode==='monat'){curMonth++;if(curMonth>11){curMonth=0;curYear++;}}else{curWeekStart=new Date(curWeekStart.getTime()+7*86400000);}render(); }
+function goToday(){ const n=new Date();curYear=n.getFullYear();curMonth=n.getMonth();curWeekStart=getWeekStart(n);render(); }
+
+function filteredOps(){
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  const fs = document.getElementById('filterStatus').value;
+  const fsal = document.getElementById('filterSaal').value;
+  return ops.filter(o=>{
+    if(fs && o.status!==fs) return false;
+    if(fsal && o.saal!==fsal) return false;
+    if(q){
+      const hay = [o.patient,o.diagnose,o.prozedur,o.icd,o.ops_code,o.notiz].join(' ').toLowerCase();
+      if(!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function render(){
+  renderStats();
+  if(viewMode==='monat') renderMonth();
+  else renderWeek();
+}
+
+function renderStats(){
+  const fo = filteredOps();
+  const inView = fo.filter(o=>{
+    const d = new Date(o.datum);
+    if(viewMode==='monat') return d.getFullYear()===curYear && d.getMonth()===curMonth;
+    const ws = curWeekStart, we = new Date(ws.getTime()+7*86400000);
+    return d>=ws && d<we;
+  });
+  const cnt = {g:0,b:0,f:0,a:0,dur:0};
+  inView.forEach(o=>{
+    if(o.status==='geplant') cnt.g++;
+    else if(o.status==='bestaetigt') cnt.b++;
+    else if(o.status==='fertig') cnt.f++;
+    else if(o.status==='abgesagt') cnt.a++;
+    cnt.dur += parseInt(o.dauer)||0;
+  });
+  const h = Math.floor(cnt.dur/60), m = cnt.dur%60;
+  document.getElementById('statsRow').innerHTML = `
+    <div class="stat-card"><div class="stat-icon" style="background:#e6f1fb;color:#185fa5;font-size:20px">📋</div><div><div class="stat-val">${inView.length}</div><div class="stat-lbl">OPs gesamt</div></div></div>
+    <div class="stat-card"><div class="stat-icon" style="background:#e6f1fb;color:#185fa5;font-size:20px">📌</div><div><div class="stat-val" style="color:#185fa5">${cnt.g}</div><div class="stat-lbl">Geplant</div></div></div>
+    <div class="stat-card"><div class="stat-icon" style="background:#e1f5ee;color:#0f6e56;font-size:20px">✅</div><div><div class="stat-val" style="color:#0f6e56">${cnt.b+cnt.f}</div><div class="stat-lbl">Bestätigt / Fertig</div></div></div>
+    <div class="stat-card"><div class="stat-icon" style="background:#fcebeb;color:#a32d2d;font-size:20px">✗</div><div><div class="stat-val" style="color:#a32d2d">${cnt.a}</div><div class="stat-lbl">Abgesagt</div></div></div>
+    <div class="stat-card"><div class="stat-icon" style="background:#faeeda;color:#854f0b;font-size:20px">⏱</div><div><div class="stat-val" style="color:#854f0b">${h}h ${m}m</div><div class="stat-lbl">OP-Zeit gesamt</div></div></div>
+  `;
+}
+
+function chipClass(op){
+  if(op.prioritaet==='notfall'||op.prioritaet==='dringlich') return 's-dringlich';
+  return 's-'+op.status;
+}
+
+function renderMonth(){
+  document.getElementById('periodLabel').textContent = MONTHS[curMonth] + ' ' + curYear;
+  const fo = filteredOps();
+  const firstDay = new Date(curYear, curMonth, 1);
+  let startDow = firstDay.getDay(); if(startDow===0) startDow=7;
+  const daysInMonth = new Date(curYear, curMonth+1, 0).getDate();
+  const daysInPrev = new Date(curYear, curMonth, 0).getDate();
+  const today = new Date(); today.setHours(0,0,0,0);
+  const totalCells = Math.ceil((startDow-1+daysInMonth)/7)*7;
+
+  let cellsHTML = '';
+  for(let i=0;i<totalCells;i++){
+    let day, month=curMonth, year=curYear, other=false;
+    if(i<startDow-1){day=daysInPrev-(startDow-2-i);month=curMonth-1;other=true;if(month<0){month=11;year--;}}
+    else if(i>=startDow-1+daysInMonth){day=i-(startDow-1+daysInMonth)+1;month=curMonth+1;other=true;if(month>11){month=0;year++;}}
+    else{day=i-(startDow-2);}
+    const dt=new Date(year,month,day); dt.setHours(0,0,0,0);
+    const isToday=dt.getTime()===today.getTime();
+    const isWeekend=(i%7>=5);
+    const dateStr=`${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    const dayOps=fo.filter(o=>o.datum===dateStr).sort((a,b)=>(a.uhrzeit||'').localeCompare(b.uhrzeit||''));
+    let cls='cell';
+    if(other) cls+=' other';
+    if(isToday) cls+=' today';
+    if(isWeekend) cls+=' weekend';
+    const dnStyle=isToday?'style="background:var(--gold);color:var(--navy);border-radius:50%;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-weight:700"':'';
+    let chipsHTML='';
+    dayOps.slice(0,3).forEach(op=>{
+      const prio=op.prioritaet==='notfall'?'🔴 ':op.prioritaet==='dringlich'?'🟠 ':'';
+      const timeStr=op.uhrzeit?`${op.uhrzeit} `:'';
+      chipsHTML+=`<button class="chip ${chipClass(op)}" onclick="event.stopPropagation();showDetail('${op.id}')" title="${op.diagnose||''} – ${op.prozedur||''}">${prio}${timeStr}${(op.prozedur||op.diagnose||'OP').substring(0,20)}</button>`;
+    });
+    if(dayOps.length>3) chipsHTML+=`<div class="more">+${dayOps.length-3} weitere</div>`;
+    cellsHTML+=`<div class="${cls}" onclick="openNew('${dateStr}')"><span class="dn" ${dnStyle}>${day}</span>${chipsHTML}</div>`;
+  }
+
+  document.getElementById('calWrap').innerHTML = `
+    <div class="cal-grid">
+      <div class="day-headers">${DAYS_SHORT.map(d=>`<div class="dh">${d}</div>`).join('')}</div>
+      <div class="cells">${cellsHTML}</div>
+    </div>
+  `;
+}
+
+function renderWeek(){
+  const ws = curWeekStart;
+  const we = new Date(ws.getTime()+4*86400000);
+  const fmt = d=>`${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}`;
+  document.getElementById('periodLabel').textContent = `KW ${getISOWeek(ws)} · ${fmt(ws)} – ${fmt(we)} ${ws.getFullYear()}`;
+  const today=new Date(); today.setHours(0,0,0,0);
+  const fo=filteredOps();
+  const HOURS=['07','08','09','10','11','12','13','14','15','16','17','18'];
+
+  let headersHTML='<div class="wh-empty"></div>';
+  for(let d=0;d<5;d++){
+    const dt=new Date(ws.getTime()+d*86400000);
+    const isTodayCol=dt.getTime()===today.getTime();
+    headersHTML+=`<div class="wh${isTodayCol?' today-col':''}"><div class="wh-day">${DAYS_SHORT[d]}</div><div class="wh-date">${fmt(dt)}</div></div>`;
+  }
+
+  let timeColHTML=HOURS.map(h=>`<div class="time-slot">${h}:00</div>`).join('');
+  let dayCols='';
+  for(let d=0;d<5;d++){
+    const dt=new Date(ws.getTime()+d*86400000);
+    const dateStr=`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+    const dayOps=fo.filter(o=>o.datum===dateStr);
+    let chipsHTML='';
+    dayOps.forEach(op=>{
+      const hr=parseInt((op.uhrzeit||'08:00').split(':')[0]);
+      const mn=parseInt((op.uhrzeit||'08:00').split(':')[1]||0);
+      const startPx=((hr-7)*60+mn)*(60/60);
+      const dur=parseInt(op.dauer)||60;
+      const h=Math.max(dur*(60/60),28);
+      const bg=chipBg(op), cl=chipColor(op);
+      chipsHTML+=`<button class="week-chip ${chipClass(op)}" style="top:${startPx}px;height:${h}px;background:${bg};color:${cl}" onclick="showDetail('${op.id}')">
+        <div class="wc-proc">${op.prozedur||op.diagnose||'OP'}</div>
+        <div class="wc-pat">${op.patient||''}</div>
+        <div class="wc-dur">${op.uhrzeit||''} · ${op.dauer||'?'}min</div>
+      </button>`;
+    });
+    dayCols+=`<div class="day-col"><div class="day-col-inner">${chipsHTML}</div></div>`;
+  }
+
+  document.getElementById('calWrap').innerHTML=`
+    <div class="week-grid">
+      <div class="week-header-row">${headersHTML}</div>
+      <div class="week-body">
+        <div class="time-col">${timeColHTML}</div>
+        ${dayCols}
+      </div>
+    </div>
+  `;
+}
+
+function chipBg(op){
+  if(op.prioritaet==='notfall'||op.prioritaet==='dringlich') return 'var(--amber-chip)';
+  const m={geplant:'var(--blue-chip)',bestaetigt:'var(--green-chip)',fertig:'var(--gray-chip)',abgesagt:'var(--red-chip)'};
+  return m[op.status]||'var(--blue-chip)';
+}
+function chipColor(op){
+  if(op.prioritaet==='notfall'||op.prioritaet==='dringlich') return 'var(--amber)';
+  const m={geplant:'var(--blue)',bestaetigt:'var(--green)',fertig:'var(--gray)',abgesagt:'var(--red)'};
+  return m[op.status]||'var(--blue)';
+}
+
+function getISOWeek(d){
+  const dt=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));
+  const day=dt.getUTCDay()||7;
+  dt.setUTCDate(dt.getUTCDate()+4-day);
+  const yearStart=new Date(Date.UTC(dt.getUTCFullYear(),0,1));
+  return Math.ceil((((dt-yearStart)/86400000)+1)/7);
+}
+
+// DETAIL PANEL
+function showDetail(id){
+  const op=ops.find(o=>o.id===id); if(!op) return;
+  detailId=id;
+  const badge=(s)=>{const m={geplant:'badge-geplant',bestaetigt:'badge-bestaetigt',fertig:'badge-fertig',abgesagt:'badge-abgesagt'};return `<span class="dp-badge ${m[s]||''}">${{geplant:'Geplant',bestaetigt:'Bestätigt',fertig:'Durchgeführt',abgesagt:'Abgesagt'}[s]||s}</span>`;};
+  const pbadge=(p)=>{const m={notfall:'badge-notfall',dringlich:'badge-dringlich',elektiv:'badge-elektiv'};return `<span class="dp-badge ${m[p]||''}" style="margin-left:6px">${{notfall:'🔴 Notfall',dringlich:'🟠 Dringlich',elektiv:'Elektiv'}[p]||p}</span>`;};
+  const row=(lbl,val)=>val?`<div class="dp-row"><div class="dp-lbl">${lbl}</div><div class="dp-val">${val}</div></div>`:'';
+  document.getElementById('dp-proc').textContent=op.prozedur||op.diagnose||'OP';
+  const d=op.datum?new Date(op.datum+'T00:00:00'):null;
+  document.getElementById('dp-date').textContent=(d?d.toLocaleDateString('de-DE',{weekday:'long',day:'2-digit',month:'long',year:'numeric'}):'-')+(op.uhrzeit?' · '+op.uhrzeit+' Uhr':'');
+  document.getElementById('dp-body').innerHTML=`
+    <div class="dp-row"><div class="dp-lbl">Status / Priorität</div><div class="dp-val">${badge(op.status)}${pbadge(op.prioritaet)}</div></div>
+    ${row('Patient-ID',op.patient)}
+    ${row('Diagnose',op.diagnose)}
+    ${(op.icd||op.icd_text)?`<div class="dp-row"><div class="dp-lbl">ICD-10</div><div class="dp-val">${op.icd||''} ${op.icd_text?'– '+op.icd_text:''}</div></div>`:''}
+    ${(op.ops_code||op.ops_text)?`<div class="dp-row"><div class="dp-lbl">OPS</div><div class="dp-val">${op.ops_code||''} ${op.ops_text?'– '+op.ops_text:''}</div></div>`:''}
+    ${row('Saal',op.saal)} ${row('Dauer',op.dauer?op.dauer+' min':null)}
+    ${row('Anästhesie',op.anaesthesie)}
+    ${row('Seite',op.seite)}
+    ${row('Implantate',op.implantate)}
+    <div style="border-top:1px solid var(--border);margin:10px 0"></div>
+    ${row('Operateur 1',op.op1)} ${row('Operateur 2',op.op2)}
+    ${row('Anästhesist',op.anaest)} ${row('OP-Pflege',op.pflege)}
+    ${op.monitoring?`<div style="border-top:1px solid var(--border);margin:10px 0"></div>${row('Monitoring / Besonderheiten',op.monitoring)}`:''}
+    ${op.notiz?`${row('Notizen',op.notiz)}`:''}
+  `;
+  document.getElementById('detailPanel').classList.add('open');
+}
+
+function closeDetail(){ document.getElementById('detailPanel').classList.remove('open'); detailId=null; }
+function editFromPanel(){ if(detailId){closeDetail();openEdit(detailId);} }
+function deleteFromPanel(){ if(detailId && confirm('OP-Eintrag löschen?')){ops=ops.filter(o=>o.id!==detailId);save();closeDetail();render();} }
+
+// MODAL
+function openNew(dateStr){
+  editingId=null;
+  document.getElementById('modalTitle').textContent='OP eintragen';
+  document.getElementById('btnDelete').style.display='none';
+  clearForm();
+  if(dateStr) document.getElementById('f_datum').value=dateStr;
+  document.getElementById('overlay').classList.add('open');
+}
+
+function openEdit(id){
+  const op=ops.find(o=>o.id===id); if(!op) return;
+  editingId=id;
+  document.getElementById('modalTitle').textContent='OP bearbeiten';
+  document.getElementById('btnDelete').style.display='block';
+  const s=function(elId,val){const el=document.getElementById(elId);if(el)el.value=val||'';};
+  s('f_datum',op.datum);
+  s('f_uhrzeit',op.uhrzeit||'08:00');
+  s('f_patient',op.patient);
+  s('f_diagnose',op.diagnose);
+  s('f_icd',op.icd);
+  s('f_icd_text',op.icd_text);
+  s('f_ops',op.ops_code);
+  s('f_ops_text',op.ops_text);
+  s('f_prozedur',op.prozedur);
+  s('f_seite',op.seite);
+  s('f_dauer',op.dauer);
+  s('f_saal',op.saal);
+  s('f_anaesthesie',op.anaesthesie);
+  s('f_implantate',op.implantate);
+  s('f_op1',op.op1||'Dr. Mosafer');
+  s('f_op2',op.op2);
+  s('f_anaest',op.anaest);
+  s('f_pflege',op.pflege);
+  s('f_status',op.status||'geplant');
+  s('f_prioritaet',op.prioritaet||'elektiv');
+  s('f_monitoring',op.monitoring);
+  s('f_notiz',op.notiz);
+  document.getElementById('overlay').classList.add('open');
+}
+
+function closeModal(){ document.getElementById('overlay').classList.remove('open'); editingId=null; }
+
+function clearForm(){
+  ['f_datum','f_uhrzeit','f_patient','f_diagnose','f_icd','f_icd_text','f_ops','f_ops_text','f_prozedur','f_dauer','f_implantate','f_op1','f_op2','f_anaest','f_pflege','f_monitoring','f_notiz'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  document.getElementById('f_uhrzeit').value='08:00';
+  document.getElementById('f_op1').value='Dr. Mosafer';
+  ['f_seite','f_saal','f_anaesthesie'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('f_status').value='geplant';
+  document.getElementById('f_prioritaet').value='elektiv';
+}
+
+function saveOP(){
+  const g=id=>document.getElementById(id)?.value||'';
+  const op={
+    id:editingId||Date.now().toString(),
+    datum:g('f_datum'),uhrzeit:g('f_uhrzeit'),patient:g('f_patient'),
+    diagnose:g('f_diagnose'),icd:g('f_icd'),icd_text:g('f_icd_text'),
+    ops_code:g('f_ops'),ops_text:g('f_ops_text'),prozedur:g('f_prozedur'),
+    seite:g('f_seite'),dauer:g('f_dauer'),saal:g('f_saal'),
+    anaesthesie:g('f_anaesthesie'),implantate:g('f_implantate'),
+    op1:g('f_op1'),op2:g('f_op2'),anaest:g('f_anaest'),pflege:g('f_pflege'),
+    status:g('f_status'),prioritaet:g('f_prioritaet'),
+    monitoring:g('f_monitoring'),notiz:g('f_notiz')
+  };
+  if(!op.datum){alert('Bitte Datum angeben.');return;}
+  if(!op.prozedur&&!op.diagnose){alert('Bitte Prozedur oder Diagnose angeben.');return;}
+  if(editingId){const i=ops.findIndex(o=>o.id===editingId);if(i>-1)ops[i]=op;}
+  else ops.push(op);
+  save();closeModal();render();
+}
+
+function deleteOP(){
+  if(!editingId||!confirm('OP-Eintrag wirklich löschen?')) return;
+  ops=ops.filter(o=>o.id!==editingId);
+  save();closeModal();render();
+}
+
+// ICD LOOKUP (DIMDI/BfArM offline shortlist + fallback)
+const ICD_COMMON = {
+  'M41':'Skoliose','M41.1':'Juvenile idiopathische Skoliose','M41.10':'Juvenile idiopathische Skoliose, nicht näher bezeichnet',
+  'M41.2':'Sonstige idiopathische Skoliosen','M41.3':'Thorakogene Skoliose','M41.5':'Sonstige sekundäre Skoliosen',
+  'M48.0':'Spinale Stenose','M47.8':'Sonstige Spondylose','M54.5':'Kreuzschmerz','M54.4':'Lumboischialgie',
+  'M43.1':'Spondylolisthesis','M43.0':'Spondylolyse','Q67.5':'Angeborene Deformität der Wirbelsäule',
+  'M40.0':'Kyphose','M40.1':'Andere sekundäre Kyphose','M40.2':'Sonstige und nicht näher bezeichnete Kyphose',
+  'M96.3':'Postlaminektomiesyndrom','S32.0':'Fraktur des Lendenwirbelkörpers','S22.0':'Fraktur des Brustwirbelkörpers',
+  'G35':'Multiple Sklerose','M05':'Seropositiv rheumatoide Arthritis','M06':'Sonstige rheumatoide Arthritis',
+  'C41.2':'Bösartige Neubildung Wirbelsäule','D16.6':'Gutartige Neubildung Wirbelsäule',
+  'M91':'Juvenile Osteochondrose der Hüfte','M92.1':'Juvenile Osteochondrose der Tibia/Fibula',
+  'Q76.3':'Kongenitale Skoliose durch Wirbelfehlbildung','Q76.4':'Sonstige kongenitale Wirbelsäulenfehlbildungen'
+};
+function lookupICD(){
+  const code=document.getElementById('f_icd').value.trim().toUpperCase();
+  if(!code){alert('Bitte ICD-Code eingeben.');return;}
+  const exact=ICD_COMMON[code];
+  if(exact){document.getElementById('f_icd_text').value=exact;return;}
+  const prefix=code.substring(0,4);
+  const found=ICD_COMMON[prefix]||ICD_COMMON[code.substring(0,3)];
+  if(found){document.getElementById('f_icd_text').value=found;}
+  else{document.getElementById('f_icd_text').value='(Code nicht in lokaler Liste – bitte manuell eingeben)';}
+}
+
+// CSV EXPORT
+function exportCSV(){
+  if(ops.length===0){alert('Keine OP-Einträge vorhanden.');return;}
+  const h=['Datum','Uhrzeit','Patient-ID','Diagnose','ICD-10','ICD-Bezeichnung','OPS','OPS-Bezeichnung','Prozedur','Seite','Dauer (Min)','Saal','Anästhesie','Implantate','Op1','Op2','Anästhesist','OP-Pflege','Status','Priorität','Monitoring','Notizen'];
+  const rows=ops.map(o=>[o.datum,o.uhrzeit,o.patient,o.diagnose,o.icd,o.icd_text,o.ops_code,o.ops_text,o.prozedur,o.seite,o.dauer,o.saal,o.anaesthesie,o.implantate,o.op1,o.op2,o.anaest,o.pflege,o.status,o.prioritaet,o.monitoring,o.notiz].map(v=>`"${(v||'').replace(/"/g,'""')}"`).join(','));
+  const csv='\uFEFF'+[h.join(','),...rows].join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+  a.download=`OP-Planung_Traunstein_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
+
+function printPlan(){
+  closeDetail();
+  window.print();
+}
+
+// Keyboard
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeDetail();}});
+
+init();
+</script>
+</body>
+</html>
