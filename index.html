@@ -641,7 +641,7 @@ function showDetail(id){
 }
 
 function closeDetail(){ document.getElementById('detailPanel').classList.remove('open'); detailId=null; }
-function editFromPanel(){ if(detailId){closeDetail();openEdit(detailId);} }
+function editFromPanel(){ if(detailId){const id=detailId;closeDetail();openEdit(id);} }
 function deleteFromPanel(){ if(detailId && confirm('OP-Eintrag löschen?')){ops=ops.filter(o=>o.id!==detailId);save();closeDetail();render();} }
 
 // MODAL
