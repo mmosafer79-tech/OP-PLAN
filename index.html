@@ -182,6 +182,8 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .badge-dringlich{background:var(--amber-bg);color:var(--amber)}
 .badge-elektiv{background:var(--bg);color:var(--text-muted)}
 </style>
+<!-- Supabase JS SDK (CDN) -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 </head>
 <body>
 
@@ -195,6 +197,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
     </div>
   </div>
   <div class="header-actions">
+    <span id="syncDot" title="Verbinde…" style="width:10px;height:10px;border-radius:50%;background:#c9a84c;display:inline-block;flex-shrink:0;transition:background 0.4s"></span>
     <button class="hbtn" onclick="exportCSV()">⬇ CSV Export</button>
     <button class="hbtn" onclick="printPlan()">🖨 Drucken</button>
     <button class="hbtn gold" onclick="openNew()">＋ OP eintragen</button>
@@ -406,6 +409,12 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 </div>
 
 <script>
+// ── SUPABASE ───────────────────────────────────────────────────────────────
+const SUPABASE_URL  = 'https://rcchxtczknqnyavmxzv.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjY2h4dGN6a25ucXF5YXZteHp2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAwNDQxODUsImV4cCI6MjA5NTYyMDE4NX0.U-JHBVq8uzdvicayfIuSK4aG12dMUkh6i5z8Oy5Yea4';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+// ── LOKALER ZUSTAND ────────────────────────────────────────────────────────
 const STORE_KEY = 'op_plan_v2';
 let ops = JSON.parse(localStorage.getItem(STORE_KEY) || '[]');
 let viewMode = 'monat';
@@ -416,14 +425,55 @@ let detailId = null;
 const MONTHS = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
 const DAYS_SHORT = ['Mo','Di','Mi','Do','Fr','Sa','So'];
 
-function save(){ localStorage.setItem(STORE_KEY, JSON.stringify(ops)); }
+// ── SYNC STATUS ────────────────────────────────────────────────────────────
+function setSyncStatus(s) {
+  const el = document.getElementById('syncDot');
+  if (!el) return;
+  const cfg = {
+    connecting: { bg:'#c9a84c', title:'Verbinde mit Supabase…' },
+    ok:         { bg:'#4caf50', title:'✓ Synchronisiert' },
+    error:      { bg:'#e53935', title:'⚠ Sync-Fehler – Daten lokal gespeichert' }
+  };
+  const c = cfg[s] || cfg.connecting;
+  el.style.background = c.bg;
+  el.title = c.title;
+}
 
-function init(){
+// ── PERSISTENZ ─────────────────────────────────────────────────────────────
+function saveLocal() { localStorage.setItem(STORE_KEY, JSON.stringify(ops)); }
+
+async function upsertRemote(op) {
+  setSyncStatus('connecting');
+  const { error } = await sb.from('op_eingriffe').upsert(op);
+  setSyncStatus(error ? 'error' : 'ok');
+  if (error) console.error('Supabase upsert:', error.message);
+}
+
+async function deleteRemote(id) {
+  setSyncStatus('connecting');
+  const { error } = await sb.from('op_eingriffe').delete().eq('id', id);
+  setSyncStatus(error ? 'error' : 'ok');
+  if (error) console.error('Supabase delete:', error.message);
+}
+
+async function loadFromSupabase() {
+  setSyncStatus('connecting');
+  const { data, error } = await sb.from('op_eingriffe').select('*').order('datum');
+  if (error) { setSyncStatus('error'); console.error('Supabase load:', error.message); return; }
+  ops = data || [];
+  saveLocal();
+  setSyncStatus('ok');
+  render();
+}
+
+// ── INIT ───────────────────────────────────────────────────────────────────
+async function init() {
   const n = new Date();
   curYear = n.getFullYear();
   curMonth = n.getMonth();
   curWeekStart = getWeekStart(n);
-  render();
+  render();               // sofort aus localStorage (offline-fähig)
+  await loadFromSupabase(); // dann aus Supabase aktualisieren
 }
 
 function getWeekStart(d){
@@ -642,7 +692,15 @@ function showDetail(id){
 
 function closeDetail(){ document.getElementById('detailPanel').classList.remove('open'); detailId=null; }
 function editFromPanel(){ if(detailId){const id=detailId;closeDetail();openEdit(id);} }
-function deleteFromPanel(){ if(detailId && confirm('OP-Eintrag löschen?')){ops=ops.filter(o=>o.id!==detailId);save();closeDetail();render();} }
+function deleteFromPanel() {
+  if (!detailId || !confirm('OP-Eintrag löschen?')) return;
+  const id = detailId;
+  ops = ops.filter(o => o.id !== id);
+  saveLocal();
+  closeDetail();
+  render();
+  deleteRemote(id);
+}
 
 // MODAL
 function openNew(dateStr){
@@ -696,30 +754,37 @@ function clearForm(){
   document.getElementById('f_prioritaet').value='elektiv';
 }
 
-function saveOP(){
-  const g=id=>document.getElementById(id)?.value||'';
-  const op={
-    id:editingId||Date.now().toString(),
-    datum:g('f_datum'),uhrzeit:g('f_uhrzeit'),patient:g('f_patient'),
-    diagnose:g('f_diagnose'),icd:g('f_icd'),icd_text:g('f_icd_text'),
-    ops_code:g('f_ops'),ops_text:g('f_ops_text'),prozedur:g('f_prozedur'),
-    seite:g('f_seite'),dauer:g('f_dauer'),saal:g('f_saal'),
-    anaesthesie:g('f_anaesthesie'),implantate:g('f_implantate'),
-    op1:g('f_op1'),op2:g('f_op2'),anaest:g('f_anaest'),pflege:g('f_pflege'),
-    status:g('f_status'),prioritaet:g('f_prioritaet'),
-    monitoring:g('f_monitoring'),notiz:g('f_notiz')
+function saveOP() {
+  const g = id => document.getElementById(id)?.value || '';
+  const op = {
+    id: editingId || Date.now().toString(),
+    datum: g('f_datum'), uhrzeit: g('f_uhrzeit'), patient: g('f_patient'),
+    diagnose: g('f_diagnose'), icd: g('f_icd'), icd_text: g('f_icd_text'),
+    ops_code: g('f_ops'), ops_text: g('f_ops_text'), prozedur: g('f_prozedur'),
+    seite: g('f_seite'), dauer: g('f_dauer'), saal: g('f_saal'),
+    anaesthesie: g('f_anaesthesie'), implantate: g('f_implantate'),
+    op1: g('f_op1'), op2: g('f_op2'), anaest: g('f_anaest'), pflege: g('f_pflege'),
+    status: g('f_status'), prioritaet: g('f_prioritaet'),
+    monitoring: g('f_monitoring'), notiz: g('f_notiz')
   };
-  if(!op.datum){alert('Bitte Datum angeben.');return;}
-  if(!op.prozedur&&!op.diagnose){alert('Bitte Prozedur oder Diagnose angeben.');return;}
-  if(editingId){const i=ops.findIndex(o=>o.id===editingId);if(i>-1)ops[i]=op;}
+  if (!op.datum) { alert('Bitte Datum angeben.'); return; }
+  if (!op.prozedur && !op.diagnose) { alert('Bitte Prozedur oder Diagnose angeben.'); return; }
+  if (editingId) { const i = ops.findIndex(o => o.id === editingId); if (i > -1) ops[i] = op; }
   else ops.push(op);
-  save();closeModal();render();
+  saveLocal();    // sofort lokal (optimistic UI)
+  closeModal();
+  render();
+  upsertRemote(op); // dann remote (fire & forget)
 }
 
-function deleteOP(){
-  if(!editingId||!confirm('OP-Eintrag wirklich löschen?')) return;
-  ops=ops.filter(o=>o.id!==editingId);
-  save();closeModal();render();
+function deleteOP() {
+  if (!editingId || !confirm('OP-Eintrag wirklich löschen?')) return;
+  const id = editingId;
+  ops = ops.filter(o => o.id !== id);
+  saveLocal();
+  closeModal();
+  render();
+  deleteRemote(id);
 }
 
 // ICD LOOKUP (DIMDI/BfArM offline shortlist + fallback)
