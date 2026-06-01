@@ -41,8 +41,8 @@ ALTER TABLE op_eingriffe ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "auth_all" ON op_eingriffe
   FOR ALL
   TO authenticated
-  USING (true)
-  WITH CHECK (true);
+  USING (auth.uid() IS NOT NULL)
+  WITH CHECK (auth.uid() IS NOT NULL);
 
 -- updated_at automatisch aktualisieren
 CREATE OR REPLACE FUNCTION update_updated_at()
@@ -51,7 +51,8 @@ BEGIN
   NEW.updated_at = NOW();
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql
+SET search_path = public;
 
 CREATE TRIGGER trg_updated_at
   BEFORE UPDATE ON op_eingriffe
