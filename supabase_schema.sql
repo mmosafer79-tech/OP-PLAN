@@ -36,11 +36,11 @@ CREATE TABLE IF NOT EXISTS op_eingriffe (
 -- Row Level Security aktivieren
 ALTER TABLE op_eingriffe ENABLE ROW LEVEL SECURITY;
 
--- Policy: anon darf alles lesen und schreiben
--- (Single-User-App ohne Login — für Multi-User später Auth hinzufügen)
-CREATE POLICY "anon_all" ON op_eingriffe
+-- Policy: nur eingeloggte User (Supabase Auth)
+-- Anon-Zugriff wird bewusst gesperrt (DSGVO: Patientendaten)
+CREATE POLICY "auth_all" ON op_eingriffe
   FOR ALL
-  TO anon
+  TO authenticated
   USING (true)
   WITH CHECK (true);
 
