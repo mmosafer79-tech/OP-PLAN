@@ -117,9 +117,9 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .hour-slot:hover{background:rgba(201,168,76,0.08)}
 .week-chip{position:absolute;left:4px;right:4px;border-radius:var(--radius-sm);padding:4px 7px;font-size:11px;cursor:pointer;overflow:hidden;border:none;text-align:left;line-height:1.4;z-index:2}
 .week-chip:hover{filter:brightness(0.92);z-index:3}
-.week-chip .wc-proc{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.week-chip .wc-pat{opacity:0.75;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.week-chip .wc-dur{opacity:0.65;font-size:10px}
+.week-chip .wc-pat{font-weight:700;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-0.01em}
+.week-chip .wc-proc{font-weight:500;font-size:11px;opacity:0.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.week-chip .wc-dur{opacity:0.7;font-size:10px;margin-top:1px}
 
 /* LEGEND */
 .legend{display:flex;gap:16px;flex-wrap:wrap;padding:0 2rem 1rem;align-items:center}
@@ -739,9 +739,10 @@ function renderWeek(){
       const dur=parseInt(op.dauer)||60;
       const h=Math.max(dur*(60/60),28);
       const bg=chipBg(op), cl=chipColor(op);
-      chipsHTML+=`<button class="week-chip ${chipClass(op)}" style="top:${startPx}px;height:${h}px;background:${bg};color:${cl}" onclick="event.stopPropagation();showDetail('${op.id}')">
+      const prio=op.prioritaet==='notfall'?'🔴 ':op.prioritaet==='dringlich'?'🟠 ':'';
+      chipsHTML+=`<button class="week-chip ${chipClass(op)}" style="top:${startPx}px;height:${h}px;background:${bg};color:${cl}" onclick="event.stopPropagation();showDetail('${op.id}')" title="${op.patient||''} · ${op.diagnose||''} – ${op.prozedur||''}">
+        <div class="wc-pat">${prio}${op.patient||'—'}</div>
         <div class="wc-proc">${op.prozedur||op.diagnose||'OP'}</div>
-        <div class="wc-pat">${op.patient||''}</div>
         <div class="wc-dur">${op.uhrzeit||''} · ${op.dauer||'?'}min</div>
       </button>`;
     });
