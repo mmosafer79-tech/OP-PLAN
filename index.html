@@ -85,8 +85,13 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .cell.today .dn{background:var(--gold);color:var(--navy);border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-weight:700}
 .cell.weekend .dn{color:var(--text-faint)}
 .dn{font-size:12px;font-weight:500;color:var(--text-muted);margin-bottom:4px;display:inline-block;width:22px;height:22px;line-height:22px;text-align:center}
-.chip{padding:4px 7px;border-radius:4px;margin-bottom:3px;overflow:hidden;cursor:pointer;display:block;border:none;width:100%;text-align:left;line-height:1.25}
+.chip{padding:4px 7px;border-radius:4px;margin-bottom:3px;overflow:hidden;cursor:grab;display:block;border:none;width:100%;text-align:left;line-height:1.25;user-select:none}
+.chip:active{cursor:grabbing}
 .chip:hover{filter:brightness(0.92)}
+.chip.dragging{opacity:0.4}
+.cell.drop-target{background:rgba(201,168,76,0.18);outline:2px dashed var(--gold);outline-offset:-2px}
+.day-col.drop-target{background:rgba(201,168,76,0.08)}
+.day-col.drop-target .day-col-inner::after{content:'';position:absolute;left:0;right:0;top:var(--drop-y,0);height:2px;background:var(--gold);z-index:5;pointer-events:none}
 .chip-pat{font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-0.01em}
 .chip-proc{font-size:10px;font-weight:500;opacity:0.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
 .chip-time{font-size:10px;font-weight:600;opacity:0.7}
@@ -115,8 +120,10 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .day-col-inner:hover{background:linear-gradient(transparent,transparent)}
 .hour-slot{position:absolute;left:0;right:0;height:60px;border-bottom:1px dashed transparent;transition:background 0.1s}
 .hour-slot:hover{background:rgba(201,168,76,0.08)}
-.week-chip{position:absolute;left:4px;right:4px;border-radius:var(--radius-sm);padding:4px 7px;font-size:11px;cursor:pointer;overflow:hidden;border:none;text-align:left;line-height:1.4;z-index:2}
+.week-chip{position:absolute;left:4px;right:4px;border-radius:var(--radius-sm);padding:4px 7px;font-size:11px;cursor:grab;overflow:hidden;border:none;text-align:left;line-height:1.4;z-index:2;user-select:none}
+.week-chip:active{cursor:grabbing}
 .week-chip:hover{filter:brightness(0.92);z-index:3}
+.week-chip.dragging{opacity:0.4}
 .week-chip .wc-pat{font-weight:700;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-0.01em}
 .week-chip .wc-proc{font-weight:500;font-size:11px;opacity:0.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
 .week-chip .wc-dur{opacity:0.7;font-size:10px;margin-top:1px}
@@ -692,13 +699,13 @@ function renderMonth(){
       const timeStr=op.uhrzeit?`<span class="chip-time">${op.uhrzeit}</span> `:'';
       const pat=op.patient||'—';
       const proc=op.prozedur||op.diagnose||'OP';
-      chipsHTML+=`<button class="chip ${chipClass(op)}" onclick="event.stopPropagation();showDetail('${op.id}')" title="${op.patient||''} · ${op.diagnose||''} – ${op.prozedur||''}">
+      chipsHTML+=`<button class="chip ${chipClass(op)}" draggable="true" data-op-id="${op.id}" ondragstart="dragStartMonth(event,'${op.id}')" ondragend="dragEnd(event)" onclick="event.stopPropagation();showDetail('${op.id}')" title="${op.patient||''} · ${op.diagnose||''} – ${op.prozedur||''}">
         <div class="chip-pat">${prio}${pat}</div>
         <div class="chip-proc">${timeStr}${proc}</div>
       </button>`;
     });
     if(dayOps.length>3) chipsHTML+=`<div class="more">+${dayOps.length-3} weitere</div>`;
-    cellsHTML+=`<div class="${cls}" onclick="openNew('${dateStr}')"><span class="dn" ${dnStyle}>${day}</span>${chipsHTML}</div>`;
+    cellsHTML+=`<div class="${cls}" data-date="${dateStr}" onclick="openNew('${dateStr}')" ondragover="dragOverCell(event)" ondragleave="dragLeaveCell(event)" ondrop="dropOnCell(event,'${dateStr}')"><span class="dn" ${dnStyle}>${day}</span>${chipsHTML}</div>`;
   }
 
   document.getElementById('calWrap').innerHTML = `
@@ -740,7 +747,7 @@ function renderWeek(){
       const h=Math.max(dur*(60/60),28);
       const bg=chipBg(op), cl=chipColor(op);
       const prio=op.prioritaet==='notfall'?'🔴 ':op.prioritaet==='dringlich'?'🟠 ':'';
-      chipsHTML+=`<button class="week-chip ${chipClass(op)}" style="top:${startPx}px;height:${h}px;background:${bg};color:${cl}" onclick="event.stopPropagation();showDetail('${op.id}')" title="${op.patient||''} · ${op.diagnose||''} – ${op.prozedur||''}">
+      chipsHTML+=`<button class="week-chip ${chipClass(op)}" draggable="true" data-op-id="${op.id}" ondragstart="dragStartWeek(event,'${op.id}')" ondragend="dragEnd(event)" style="top:${startPx}px;height:${h}px;background:${bg};color:${cl}" onclick="event.stopPropagation();showDetail('${op.id}')" title="${op.patient||''} · ${op.diagnose||''} – ${op.prozedur||''}">
         <div class="wc-pat">${prio}${op.patient||'—'}</div>
         <div class="wc-proc">${op.prozedur||op.diagnose||'OP'}</div>
         <div class="wc-dur">${op.uhrzeit||''} · ${op.dauer||'?'}min</div>
@@ -751,7 +758,7 @@ function renderWeek(){
     HOURS.forEach((h,idx)=>{
       slotsHTML+=`<div class="hour-slot" style="top:${idx*60}px" onclick="openNewAt('${dateStr}','${h}:00')" title="Klicken: OP um ${h}:00 eintragen"></div>`;
     });
-    dayCols+=`<div class="day-col"><div class="day-col-inner">${slotsHTML}${chipsHTML}</div></div>`;
+    dayCols+=`<div class="day-col" data-date="${dateStr}" ondragover="dragOverDayCol(event)" ondragleave="dragLeaveDayCol(event)" ondrop="dropOnDayCol(event,'${dateStr}')"><div class="day-col-inner">${slotsHTML}${chipsHTML}</div></div>`;
   }
 
   document.getElementById('calWrap').innerHTML=`
@@ -782,6 +789,76 @@ function getISOWeek(d){
   dt.setUTCDate(dt.getUTCDate()+4-day);
   const yearStart=new Date(Date.UTC(dt.getUTCFullYear(),0,1));
   return Math.ceil((((dt-yearStart)/86400000)+1)/7);
+}
+
+// DRAG & DROP
+let dragState = null; // { id, suppressClick }
+
+function dragStartMonth(e, id){
+  dragState = { id, mode:'month', el: e.currentTarget };
+  e.currentTarget.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  try { e.dataTransfer.setData('text/plain', id); } catch(_) {}
+}
+function dragStartWeek(e, id){
+  dragState = { id, mode:'week', el: e.currentTarget };
+  e.currentTarget.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  try { e.dataTransfer.setData('text/plain', id); } catch(_) {}
+}
+function dragEnd(e){
+  if(dragState && dragState.el) dragState.el.classList.remove('dragging');
+  setTimeout(()=>{ dragState=null; }, 50);
+  document.querySelectorAll('.cell.drop-target,.day-col.drop-target').forEach(el=>el.classList.remove('drop-target'));
+}
+function dragOverCell(e){
+  if(!dragState||dragState.mode!=='month') return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect='move';
+  e.currentTarget.classList.add('drop-target');
+}
+function dragLeaveCell(e){ e.currentTarget.classList.remove('drop-target'); }
+function dropOnCell(e, dateStr){
+  e.preventDefault();
+  e.currentTarget.classList.remove('drop-target');
+  if(!dragState) return;
+  const op = ops.find(o=>o.id===dragState.id);
+  if(!op || op.datum===dateStr) return;
+  op.datum = dateStr;
+  saveLocal(); render(); upsertRemote(op);
+}
+function dragOverDayCol(e){
+  if(!dragState||dragState.mode!=='week') return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect='move';
+  e.currentTarget.classList.add('drop-target');
+  // Marker-Linie an Drop-Position
+  const inner = e.currentTarget.querySelector('.day-col-inner');
+  const rect = inner.getBoundingClientRect();
+  const y = Math.max(0, Math.min(rect.height, e.clientY - rect.top));
+  inner.style.setProperty('--drop-y', y+'px');
+}
+function dragLeaveDayCol(e){
+  if(!e.currentTarget.contains(e.relatedTarget)) e.currentTarget.classList.remove('drop-target');
+}
+function dropOnDayCol(e, dateStr){
+  e.preventDefault();
+  e.currentTarget.classList.remove('drop-target');
+  if(!dragState) return;
+  const op = ops.find(o=>o.id===dragState.id);
+  if(!op) return;
+  const inner = e.currentTarget.querySelector('.day-col-inner');
+  const rect = inner.getBoundingClientRect();
+  const y = Math.max(0, Math.min(rect.height-1, e.clientY - rect.top));
+  // Snap auf 15 Minuten, Start 07:00
+  let mins = Math.round(y / 15) * 15; // 1px = 1min
+  mins = Math.max(0, Math.min((18-7)*60, mins));
+  const totalMin = 7*60 + mins;
+  const hh = String(Math.floor(totalMin/60)).padStart(2,'0');
+  const mm = String(totalMin%60).padStart(2,'0');
+  op.datum = dateStr;
+  op.uhrzeit = `${hh}:${mm}`;
+  saveLocal(); render(); upsertRemote(op);
 }
 
 // DETAIL PANEL
