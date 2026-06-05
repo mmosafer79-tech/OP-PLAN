@@ -72,20 +72,24 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 /* CALENDAR */
 .cal-wrap{padding:1.25rem 2rem 2rem}
 .cal-grid{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
-.day-headers{display:grid;grid-template-columns:repeat(7,1fr);background:var(--navy);color:#fff}
+.day-headers{display:grid;grid-template-columns:42px repeat(7,1fr);background:var(--navy);color:#fff}
 .dh{padding:9px 8px;text-align:center;font-size:11px;font-weight:600;letter-spacing:0.08em;opacity:0.85}
-.cells{display:grid;grid-template-columns:repeat(7,1fr)}
-.cell{min-height:110px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);padding:6px;cursor:pointer;transition:background 0.1s;position:relative}
-.cell:nth-child(7n){border-right:none}
+.dh.kw-h{opacity:0.6;font-size:10px;border-right:1px solid rgba(255,255,255,0.12)}
+.cells{display:grid;grid-template-columns:42px repeat(7,1fr)}
+.kw-cell{min-height:110px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);background:#f0f3f8;display:flex;align-items:flex-start;justify-content:center;padding-top:8px;font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:0.02em}
+.cell{min-height:110px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);padding:6px;cursor:pointer;transition:background 0.1s;position:relative;overflow:hidden}
+.cell:nth-child(8n){border-right:none}
 .cell:hover{background:var(--bg)}
 .cell.other{opacity:0.38;background:#fafafa}
 .cell.today{background:#fffbf0}
 .cell.today .dn{background:var(--gold);color:var(--navy);border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-weight:700}
 .cell.weekend .dn{color:var(--text-faint)}
 .dn{font-size:12px;font-weight:500;color:var(--text-muted);margin-bottom:4px;display:inline-block;width:22px;height:22px;line-height:22px;text-align:center}
-.chip{font-size:11px;padding:3px 7px;border-radius:4px;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;display:flex;align-items:center;gap:4px;border:none;width:100%;text-align:left;line-height:1.3}
+.chip{padding:4px 7px;border-radius:4px;margin-bottom:3px;overflow:hidden;cursor:pointer;display:block;border:none;width:100%;text-align:left;line-height:1.25}
 .chip:hover{filter:brightness(0.92)}
-.chip svg{flex-shrink:0;width:9px;height:9px}
+.chip-pat{font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-0.01em}
+.chip-proc{font-size:10px;font-weight:500;opacity:0.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.chip-time{font-size:10px;font-weight:600;opacity:0.7}
 .s-geplant{background:var(--blue-chip);color:var(--blue)}
 .s-bestaetigt{background:var(--green-chip);color:var(--green)}
 .s-fertig{background:var(--gray-chip);color:var(--gray)}
@@ -107,7 +111,10 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .time-slot{height:60px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:center;padding-top:4px;font-size:10px;color:var(--text-faint);font-weight:500}
 .day-col{border-right:1px solid var(--border);position:relative;min-height:780px}
 .day-col:last-child{border-right:none}
-.day-col-inner{position:relative;height:780px}
+.day-col-inner{position:relative;height:780px;cursor:copy}
+.day-col-inner:hover{background:linear-gradient(transparent,transparent)}
+.hour-slot{position:absolute;left:0;right:0;height:60px;border-bottom:1px dashed transparent;transition:background 0.1s}
+.hour-slot:hover{background:rgba(201,168,76,0.08)}
 .week-chip{position:absolute;left:4px;right:4px;border-radius:var(--radius-sm);padding:4px 7px;font-size:11px;cursor:pointer;overflow:hidden;border:none;text-align:left;line-height:1.4;z-index:2}
 .week-chip:hover{filter:brightness(0.92);z-index:3}
 .week-chip .wc-proc{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -674,11 +681,21 @@ function renderMonth(){
     if(isToday) cls+=' today';
     if(isWeekend) cls+=' weekend';
     const dnStyle=isToday?'style="background:var(--gold);color:var(--navy);border-radius:50%;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-weight:700"':'';
+    // KW-Zelle am Wochenanfang (Montag = Spaltenposition 0)
+    if(i%7===0){
+      const kw=getISOWeek(dt);
+      cellsHTML+=`<div class="kw-cell" title="Kalenderwoche ${kw}">KW ${kw}</div>`;
+    }
     let chipsHTML='';
     dayOps.slice(0,3).forEach(op=>{
       const prio=op.prioritaet==='notfall'?'🔴 ':op.prioritaet==='dringlich'?'🟠 ':'';
-      const timeStr=op.uhrzeit?`${op.uhrzeit} `:'';
-      chipsHTML+=`<button class="chip ${chipClass(op)}" onclick="event.stopPropagation();showDetail('${op.id}')" title="${op.diagnose||''} – ${op.prozedur||''}">${prio}${timeStr}${(op.prozedur||op.diagnose||'OP').substring(0,20)}</button>`;
+      const timeStr=op.uhrzeit?`<span class="chip-time">${op.uhrzeit}</span> `:'';
+      const pat=op.patient||'—';
+      const proc=op.prozedur||op.diagnose||'OP';
+      chipsHTML+=`<button class="chip ${chipClass(op)}" onclick="event.stopPropagation();showDetail('${op.id}')" title="${op.patient||''} · ${op.diagnose||''} – ${op.prozedur||''}">
+        <div class="chip-pat">${prio}${pat}</div>
+        <div class="chip-proc">${timeStr}${proc}</div>
+      </button>`;
     });
     if(dayOps.length>3) chipsHTML+=`<div class="more">+${dayOps.length-3} weitere</div>`;
     cellsHTML+=`<div class="${cls}" onclick="openNew('${dateStr}')"><span class="dn" ${dnStyle}>${day}</span>${chipsHTML}</div>`;
@@ -686,7 +703,7 @@ function renderMonth(){
 
   document.getElementById('calWrap').innerHTML = `
     <div class="cal-grid">
-      <div class="day-headers">${DAYS_SHORT.map(d=>`<div class="dh">${d}</div>`).join('')}</div>
+      <div class="day-headers"><div class="dh kw-h">KW</div>${DAYS_SHORT.map(d=>`<div class="dh">${d}</div>`).join('')}</div>
       <div class="cells">${cellsHTML}</div>
     </div>
   `;
@@ -722,13 +739,18 @@ function renderWeek(){
       const dur=parseInt(op.dauer)||60;
       const h=Math.max(dur*(60/60),28);
       const bg=chipBg(op), cl=chipColor(op);
-      chipsHTML+=`<button class="week-chip ${chipClass(op)}" style="top:${startPx}px;height:${h}px;background:${bg};color:${cl}" onclick="showDetail('${op.id}')">
+      chipsHTML+=`<button class="week-chip ${chipClass(op)}" style="top:${startPx}px;height:${h}px;background:${bg};color:${cl}" onclick="event.stopPropagation();showDetail('${op.id}')">
         <div class="wc-proc">${op.prozedur||op.diagnose||'OP'}</div>
         <div class="wc-pat">${op.patient||''}</div>
         <div class="wc-dur">${op.uhrzeit||''} · ${op.dauer||'?'}min</div>
       </button>`;
     });
-    dayCols+=`<div class="day-col"><div class="day-col-inner">${chipsHTML}</div></div>`;
+    // Klickbare Stunden-Slots (hinter den Chips)
+    let slotsHTML='';
+    HOURS.forEach((h,idx)=>{
+      slotsHTML+=`<div class="hour-slot" style="top:${idx*60}px" onclick="openNewAt('${dateStr}','${h}:00')" title="Klicken: OP um ${h}:00 eintragen"></div>`;
+    });
+    dayCols+=`<div class="day-col"><div class="day-col-inner">${slotsHTML}${chipsHTML}</div></div>`;
   }
 
   document.getElementById('calWrap').innerHTML=`
@@ -810,6 +832,12 @@ function openNew(dateStr){
   clearForm();
   if(dateStr) document.getElementById('f_datum').value=dateStr;
   document.getElementById('overlay').classList.add('open');
+  setTimeout(()=>document.getElementById('f_patient').focus(),50);
+}
+
+function openNewAt(dateStr,timeStr){
+  openNew(dateStr);
+  if(timeStr) document.getElementById('f_uhrzeit').value=timeStr;
 }
 
 function openEdit(id){
