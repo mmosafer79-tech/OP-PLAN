@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anmeldebogen · Wirbelsäulenchirurgie</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0a2240">
+<style>
+:root{
+  --navy:#0a2240; --navy-light:#2a5080; --gold:#c9a84c;
+  --bg:#eef1f5; --surface:#ffffff; --border:#c8d0dc; --border-strong:#9aa8bd;
+  --text:#12233b; --muted:#5a7090; --line:#1a2a40;
+  --radius:8px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,Arial,sans-serif;background:var(--bg);color:var(--text);font-size:13px;line-height:1.4}
+
+/* ---------- Auth-Gate ---------- */
+#authGate{position:fixed;inset:0;z-index:9999;background:var(--navy);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;padding:2rem}
+#authGate .box{background:#fff;border-radius:12px;padding:1.6rem;width:min(340px,90vw);box-shadow:0 10px 40px rgba(0,0,0,.3)}
+#authGate h2{font-size:16px;color:var(--navy);margin-bottom:.3rem}
+#authGate p{font-size:12px;color:var(--muted);margin-bottom:1rem}
+#authGate input{width:100%;padding:9px 11px;font-size:14px;border:1px solid var(--border);border-radius:6px;margin-bottom:8px}
+#authGate button{width:100%;padding:10px;font-size:14px;font-weight:600;border:none;border-radius:6px;background:var(--navy);color:#fff;cursor:pointer}
+#authGate button:hover{background:var(--navy-light)}
+#authErr{color:#a32d2d;font-size:12px;min-height:16px;margin-top:4px}
+
+/* ---------- Toolbar (bildschirm) ---------- */
+.toolbar{position:sticky;top:0;z-index:40;background:var(--navy);color:#fff;display:flex;align-items:center;gap:10px;padding:9px 18px;box-shadow:0 2px 8px rgba(10,34,64,.25)}
+.toolbar .t-title{font-size:14px;font-weight:600;flex:1}
+.toolbar a,.toolbar button{font-size:12px;font-weight:500;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.09);color:#fff;padding:7px 13px;border-radius:6px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:5px}
+.toolbar button.gold{background:var(--gold);color:var(--navy);border-color:var(--gold);font-weight:600}
+.toolbar button:hover{background:rgba(255,255,255,.2)}
+.toolbar button.gold:hover{background:#e8c97a}
+#saveState{font-size:11px;color:rgba(255,255,255,.6);min-width:90px}
+
+/* ---------- Blatt (A4) ---------- */
+.sheet-wrap{padding:22px 12px 60px;display:flex;justify-content:center}
+.sheet{background:var(--surface);width:210mm;max-width:100%;padding:14mm 14mm 12mm;box-shadow:0 3px 18px rgba(10,34,64,.12);border:1px solid var(--border)}
+
+/* Kopf */
+.sheet-head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid var(--line);padding-bottom:8px;margin-bottom:10px}
+.brand-title{font-size:19px;font-weight:700;letter-spacing:.01em}
+.brand-sub{font-size:11px;color:var(--muted);margin-top:2px}
+.brand-logo{text-align:right;font-size:12px;line-height:1.3}
+.brand-logo .lg{display:inline-flex;align-items:center;gap:7px;font-weight:700;font-size:14px}
+.brand-logo .dot{width:22px;height:22px;border-radius:50%;background:var(--gold);display:inline-block}
+.brand-logo .lg-sub{color:var(--muted);font-weight:400;font-size:11px}
+
+/* Felder-Grundlagen */
+.row{display:grid;gap:0 14px;margin-bottom:2px}
+.field{display:flex;align-items:baseline;gap:6px;padding:3px 0;min-height:26px}
+.field > label{color:var(--muted);font-size:11px;white-space:nowrap;flex-shrink:0}
+.field .fill{flex:1;border:none;border-bottom:1px solid var(--border-strong);background:transparent;font-size:13px;font-family:inherit;color:var(--text);padding:1px 2px 2px}
+.field .fill:focus{outline:none;border-bottom-color:var(--navy);background:#f6f9ff}
+textarea.fill{resize:vertical;min-height:22px;border:1px solid var(--border-strong);border-radius:5px;line-height:1.35}
+input.fill::placeholder,textarea.fill::placeholder{color:#b3bfcf}
+
+.block{border:1px solid var(--border);border-radius:var(--radius);padding:9px 12px;margin-bottom:9px}
+.block > .bt{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--navy);margin-bottom:6px}
+
+/* Checkbox-Optik wie Papier: ☐ / ☒ */
+.cbx{display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:12.5px;user-select:none;padding:3px 0}
+.cbx input{position:absolute;opacity:0;width:0;height:0}
+.cbx .mark{width:15px;height:15px;border:1.6px solid var(--line);border-radius:2px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;font-size:13px;font-weight:700;line-height:1}
+.cbx input:checked + .mark::after{content:"✕";color:var(--navy)}
+.cbx input:focus-visible + .mark{outline:2px solid var(--navy);outline-offset:1px}
+
+.cbx-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px 14px}
+.cbx-grid.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+.inline-cbx{display:flex;flex-wrap:wrap;gap:4px 20px;align-items:center}
+
+.sep{height:1px;background:var(--border);margin:7px 0}
+.hint{font-size:10.5px;color:var(--muted)}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:0 18px}
+.diag-sub{margin-left:24px;display:flex;flex-wrap:wrap;gap:2px 18px}
+
+/* Fuss */
+.sheet-foot{display:flex;justify-content:space-between;align-items:flex-end;border-top:2px solid var(--line);padding-top:8px;margin-top:10px;gap:16px}
+
+/* ---------- Druck ---------- */
+@media print{
+  @page{size:A4;margin:10mm}
+  body{background:#fff;font-size:11.5px}
+  .toolbar,#authGate{display:none !important}
+  .sheet-wrap{padding:0;display:block}
+  .sheet{box-shadow:none;border:none;width:auto;padding:0}
+  .field .fill{border-bottom:1px solid #333}
+  textarea.fill{border:1px solid #333}
+  .block{break-inside:avoid}
+  .cbx .mark{border-color:#000}
+}
+@media(max-width:640px){
+  .cbx-grid{grid-template-columns:1fr 1fr}
+  .two-col{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- ============ AUTH-GATE ============ -->
+<div id="authGate" style="display:none">
+  <div class="box">
+    <h2>Anmeldung erforderlich</h2>
+    <p>Der Anmeldebogen enthält Patientendaten. Bitte mit dem OP-Plan-Konto anmelden.</p>
+    <input type="email" id="agEmail" placeholder="name@klinik.de" autocomplete="email">
+    <input type="password" id="agPass" placeholder="Passwort" autocomplete="current-password">
+    <button onclick="agSignIn()">Anmelden</button>
+    <div id="authErr"></div>
+  </div>
+</div>
+
+<!-- ============ TOOLBAR ============ -->
+<div class="toolbar">
+  <span class="t-title">Anmeldebogen Wirbelsäulenchirurgie</span>
+  <span id="saveState"></span>
+  <a href="index.html" title="Zurück zum OP-Plan">← OP-Plan</a>
+  <button onclick="neuerBogen()" title="Leeren Bogen">＋ Neu</button>
+  <button onclick="druckenPDF()" title="Drucken / als PDF speichern">🖨 Drucken/PDF</button>
+  <button onclick="versenden()" title="Per E-Mail versenden">✉ Versenden</button>
+  <button class="gold" onclick="speichern()" title="In Datenbank speichern + OP-Plan-Eintrag">💾 Speichern</button>
+</div>
+
+<!-- ============ BLATT ============ -->
+<div class="sheet-wrap">
+<form id="bogen" class="sheet" autocomplete="off" onsubmit="return false">
+
+  <!-- KOPF / BRANDING (leicht editierbar via JS-Konstante BRAND) -->
+  <div class="sheet-head">
+    <div>
+      <div class="brand-title" id="brandTitle">Wirbelsäulenchirurgie</div>
+      <div class="brand-sub" id="brandSub">Anmeldebogen zur operativen Behandlung</div>
+    </div>
+    <div class="brand-logo">
+      <span class="lg"><span class="dot"></span><span id="brandClinic">Praxis Mosafer Spine</span></span>
+      <div class="lg-sub" id="brandClinicSub">Wirbelsäulen- &amp; Skoliosechirurgie</div>
+    </div>
+  </div>
+
+  <!-- PATIENTENDATEN -->
+  <div class="block">
+    <div class="bt">Patient</div>
+    <div class="row two-col">
+      <div class="field"><label>Name, Vorname</label><input class="fill" id="p_name" placeholder="Nachname, Vorname"></div>
+      <div class="field"><label>Geb.-Datum</label><input class="fill" id="p_gebdat" type="text" placeholder="TT.MM.JJJJ"></div>
+      <div class="field"><label>Geschlecht</label><input class="fill" id="p_geschlecht" placeholder="M / W / D"></div>
+      <div class="field"><label>Fall-/Aufnahme-Nr.</label><input class="fill" id="p_fallnr" placeholder="z. B. 101562629"></div>
+      <div class="field"><label>Straße</label><input class="fill" id="p_strasse" placeholder="Straße Nr."></div>
+      <div class="field"><label>PLZ / Ort</label><input class="fill" id="p_ort" placeholder="PLZ Ort"></div>
+      <div class="field"><label>Krankenkasse</label><input class="fill" id="p_kasse" placeholder="Kasse"></div>
+      <div class="field"><label>Vers.-Nr.</label><input class="fill" id="p_versnr" placeholder="Versichertennummer"></div>
+      <div class="field"><label>Kostenträger</label><input class="fill" id="p_kostentraeger" placeholder="ALLG. / BG / privat"></div>
+      <div class="field"><label>Behandlungskat.</label><input class="fill" id="p_bkat" placeholder="z. B. Allg. BGP"></div>
+    </div>
+    <div class="sep"></div>
+    <div class="inline-cbx">
+      <label class="cbx"><input type="checkbox" id="c_begleitperson"><span class="mark"></span>mit Begleitperson</label>
+      <label class="cbx"><input type="checkbox" id="c_terminieren"><span class="mark"></span>Pat. terminieren</label>
+      <div class="field" style="flex:1;min-width:220px"><label>Wunschmonat / -termin</label><input class="fill" id="p_wunschtermin" placeholder="z. B. September"></div>
+    </div>
+  </div>
+
+  <!-- DRINGLICHKEIT + OP -->
+  <div class="block">
+    <div class="bt">Dringlichkeit &amp; Eingriff</div>
+    <div class="inline-cbx" style="margin-bottom:6px">
+      <label class="cbx"><input type="radio" name="dring" value="Elektiv" checked><span class="mark"></span>Elektiv</label>
+      <label class="cbx"><input type="radio" name="dring" value="dringlich"><span class="mark"></span>Dringlich</label>
+      <label class="cbx"><input type="radio" name="dring" value="Notfall"><span class="mark"></span>Notfall</label>
+    </div>
+    <div class="field"><label>Diagnose</label><textarea class="fill" id="f_diagnose" rows="1" placeholder="Diagnose"></textarea></div>
+    <div class="two-col">
+      <div class="field"><label>ICD-10</label><input class="fill" id="f_icd" placeholder="z. B. M96.0"></div>
+      <div class="field"><label>OPS-Code</label><input class="fill" id="f_ops" placeholder="z. B. 5-836"></div>
+    </div>
+    <div class="field"><label>1. Operation</label><textarea class="fill" id="f_op1_text" rows="1" placeholder="geplante Operation"></textarea></div>
+    <div class="field"><label>2. Operation</label><textarea class="fill" id="f_op2_text" rows="1" placeholder="optional"></textarea></div>
+    <div class="two-col">
+      <div class="field"><label>Implantat</label><input class="fill" id="f_implantat" placeholder="z. B. Expedium"></div>
+      <div class="field"><label>Seite</label><input class="fill" id="f_seite" placeholder="li / re / bds"></div>
+    </div>
+    <div class="two-col">
+      <div class="field"><label>OP-Datum</label><input class="fill" id="f_opdatum" type="date"></div>
+      <div class="field"><label>Uhrzeit</label><input class="fill" id="f_uhrzeit" type="time"></div>
+      <div class="field"><label>präop. Tage</label><input class="fill" id="f_praeop" type="number" min="0" placeholder="0"></div>
+      <div class="field"><label>postop. Tage</label><input class="fill" id="f_postop" type="number" min="0" placeholder="0"></div>
+    </div>
+    <div class="inline-cbx" style="margin-top:4px">
+      <span class="hint" style="font-weight:700;color:var(--navy)">Blut:</span>
+      <label class="cbx"><input type="checkbox" id="b_blutgruppe"><span class="mark"></span>Blutgruppe</label>
+      <label class="cbx"><input type="checkbox" id="b_ery"><span class="mark"></span>EK bereitstellen</label>
+      <label class="cbx"><input type="checkbox" id="b_cellsaver"><span class="mark"></span>Cell-Saver</label>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <!-- MEDIKAMENTE ABSETZEN -->
+    <div class="block">
+      <div class="bt">Medikamente absetzen</div>
+      <label class="cbx"><input type="checkbox" id="m_metformin"><span class="mark"></span>Metformin absetzen</label><br>
+      <label class="cbx"><input type="checkbox" id="m_ass"><span class="mark"></span>ASS / Plavix absetzen</label><br>
+      <label class="cbx"><input type="checkbox" id="m_glp"><span class="mark"></span>Ozempic® / Trulicity® (GLP-1) absetzen</label><br>
+      <label class="cbx"><input type="checkbox" id="m_schrittmacher"><span class="mark"></span>Herzschrittmacher</label>
+      <div class="field" style="margin-top:4px"><label>Sonstiges</label><input class="fill" id="m_sonstiges" placeholder="…"></div>
+    </div>
+
+    <!-- KINDER / KONSILE -->
+    <div class="block">
+      <div class="bt">Kinder / Konsile</div>
+      <div class="inline-cbx">
+        <label class="cbx"><input type="checkbox" id="k_narkose"><span class="mark"></span>Narkose</label>
+        <label class="cbx"><input type="checkbox" id="k_sedierung"><span class="mark"></span>in Sedierung</label>
+      </div>
+      <div class="inline-cbx" style="margin-top:3px">
+        <label class="cbx"><input type="checkbox" id="k_neuro"><span class="mark"></span>Neurologen</label>
+        <label class="cbx"><input type="checkbox" id="k_anaesth"><span class="mark"></span>Anästhesie</label>
+      </div>
+      <div class="sep"></div>
+      <div class="bt" style="margin-bottom:4px">Korsettversorgung</div>
+      <div class="inline-cbx">
+        <label class="cbx"><input type="radio" name="korsett" value="Ja"><span class="mark"></span>Ja</label>
+        <label class="cbx"><input type="radio" name="korsett" value="Nein"><span class="mark"></span>Nein</label>
+      </div>
+      <div class="field" style="margin-top:4px"><label>Sonstiges</label><input class="fill" id="korsett_sonst" placeholder="…"></div>
+    </div>
+  </div>
+
+  <!-- DIAGNOSTIK -->
+  <div class="block">
+    <div class="bt">Diagnostik</div>
+    <div class="cbx-grid two">
+      <div>
+        <label class="cbx"><input type="checkbox" id="d_roentgen"><span class="mark"></span><b>Röntgen</b></label>
+        <div class="diag-sub">
+          <label class="cbx"><input type="checkbox" id="d_rx_hws"><span class="mark"></span>HWS</label>
+          <label class="cbx"><input type="checkbox" id="d_rx_lws"><span class="mark"></span>LWS</label>
+          <label class="cbx"><input type="checkbox" id="d_rx_pan"><span class="mark"></span>PAN (Ganzwirbelsäule)</label>
+        </div>
+        <label class="cbx"><input type="checkbox" id="d_funktion"><span class="mark"></span>Funktionsaufnahmen</label>
+        <div class="diag-sub">
+          <label class="cbx"><input type="checkbox" id="d_bending"><span class="mark"></span>Bending</label>
+        </div>
+        <label class="cbx"><input type="checkbox" id="d_ct"><span class="mark"></span><b>CT</b></label>
+        <div class="diag-sub">
+          <label class="cbx"><input type="checkbox" id="d_ct_nav"><span class="mark"></span>CT Navigation WS</label>
+        </div>
+      </div>
+      <div>
+        <label class="cbx"><input type="checkbox" id="d_mrt"><span class="mark"></span><b>MRT</b></label>
+        <div class="diag-sub">
+          <label class="cbx"><input type="checkbox" id="d_mrt_navkopf"><span class="mark"></span>MRT Navigation Kopf</label>
+          <label class="cbx"><input type="checkbox" id="d_mrt_funkt"><span class="mark"></span>MRT funktionell</label>
+        </div>
+        <label class="cbx"><input type="checkbox" id="d_infiltration"><span class="mark"></span>diagn. Infiltration</label>
+        <label class="cbx"><input type="checkbox" id="d_myelo"><span class="mark"></span>Myelographie</label>
+        <div class="field" style="margin-top:4px"><label>Sonstiges / Konsile</label><input class="fill" id="d_sonstiges" placeholder="…"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BEMERKUNG + FUSS -->
+  <div class="field"><label>Bemerkung</label><textarea class="fill" id="f_notiz" rows="2" placeholder="freie Notiz"></textarea></div>
+
+  <div class="sheet-foot">
+    <div class="field" style="flex:1"><label>Behandelnder Arzt</label><input class="fill" id="f_arzt" value="Dr. med. Mostafa Mosafer"></div>
+    <div class="field" style="width:150px"><label>Datum</label><input class="fill" id="f_erstellt" type="date"></div>
+  </div>
+
+</form>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script>
+/* ============================================================
+   ANMELDEBOGEN · Wirbelsäulenchirurgie
+   Speichert nach Supabase (Tabelle 'anmeldeboegen', auth-only)
+   + erzeugt pseudonymisierten OP-Plan-Eintrag (op_eingriffe)
+   ============================================================ */
+
+/* ---- Branding (hier anpassen, z. B. für Klinikum Traunstein) ---- */
+const BRAND = {
+  title:  'Wirbelsäulenchirurgie',
+  sub:    'Anmeldebogen zur operativen Behandlung',
+  clinic: 'Praxis Mosafer Spine',
+  clinicSub: 'Wirbelsäulen- & Skoliosechirurgie'
+};
+document.getElementById('brandTitle').textContent = BRAND.title;
+document.getElementById('brandSub').textContent   = BRAND.sub;
+document.getElementById('brandClinic').textContent= BRAND.clinic;
+document.getElementById('brandClinicSub').textContent = BRAND.clinicSub;
+
+/* ---- Supabase (gleiche Instanz wie OP-Plan) ---- */
+const SUPABASE_URL  = 'https://rcchxtczknnqqyavmxzv.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjY2h4dGN6a25ucXF5YXZteHp2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAwNDQxODUsImV4cCI6MjA5NTYyMDE4NX0.U-JHBVq8uzdvicayfIuSK4aG12dMUkh6i5z8Oy5Yea4';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+let currentId = null;   // id des aktuell geladenen/gespeicherten Bogens
+
+/* ---------- Auth ---------- */
+async function checkAuth(){
+  const { data:{ session } } = await sb.auth.getSession();
+  if(session){ document.getElementById('authGate').style.display='none'; }
+  else       { document.getElementById('authGate').style.display='flex'; }
+  return !!session;
+}
+async function agSignIn(){
+  const email=document.getElementById('agEmail').value.trim();
+  const pass =document.getElementById('agPass').value;
+  const err  =document.getElementById('authErr'); err.textContent='';
+  const { error } = await sb.auth.signInWithPassword({ email, password:pass });
+  if(error){ err.textContent='Anmeldung fehlgeschlagen: '+error.message; return; }
+  checkAuth();
+}
+sb.auth.onAuthStateChange(()=>checkAuth());
+
+/* ---------- Helpers ---------- */
+const g  = id => (document.getElementById(id)?.value ?? '').trim();
+const gc = id => !!document.getElementById(id)?.checked;
+const radio = name => document.querySelector(`input[name="${name}"]:checked`)?.value || '';
+const setV = (id,v)=>{ const el=document.getElementById(id); if(el) el.value = v ?? ''; };
+const setC = (id,v)=>{ const el=document.getElementById(id); if(el) el.checked = !!v; };
+
+/* Patient-Feld für OP-Plan: gleiche Konvention wie bestehende Einträge
+   -> "Nachname, Vorname (GebDat)". op_eingriffe ist auth-geschützt (RLS).
+   Wer stattdessen nur ein Kürzel im Kalender will, setzt PSEUDONYM = true. */
+const PSEUDONYM = false;
+function opPatientLabel(){
+  const name = g('p_name'); const gd = g('p_gebdat');
+  if(!name) return 'Patient';
+  if(!PSEUDONYM) return name + (gd? ' ('+gd+')' : '');
+  // Kürzel-Variante: "Sch., J. · 1988"
+  const parts = name.split(',').map(s=>s.trim());
+  const nach = (parts[0]||'').slice(0,3);
+  const vorInit = (parts[1]||'').charAt(0);
+  const kuerzel = nach + (nach?'.':'') + (vorInit? ', '+vorInit+'.' : '');
+  const jahr = (gd.match(/(\d{4})/)||[])[1] || '';
+  return (kuerzel + (jahr? ' · '+jahr : '')).trim();
+}
+
+/* Diagnostik-Kürzel für Notiz/OP-Plan */
+function diagnostikText(){
+  const t=[];
+  if(gc('d_roentgen')){ const s=['HWS','LWS','PAN'].filter(x=>gc('d_rx_'+x.toLowerCase())); t.push('Rö'+(s.length?' ('+s.join('/')+')':'')); }
+  if(gc('d_funktion')) t.push('Funktion'+(gc('d_bending')?'/Bending':''));
+  if(gc('d_ct'))       t.push('CT'+(gc('d_ct_nav')?' (Nav)':''));
+  if(gc('d_mrt')){ const s=[]; if(gc('d_mrt_navkopf'))s.push('Nav Kopf'); if(gc('d_mrt_funkt'))s.push('funkt.'); t.push('MRT'+(s.length?' ('+s.join('/')+')':'')); }
+  if(gc('d_infiltration')) t.push('Infiltration');
+  if(gc('d_myelo'))        t.push('Myelographie');
+  if(g('d_sonstiges'))     t.push(g('d_sonstiges'));
+  return t.join(', ');
+}
+
+/* Absetz-Kürzel */
+function absetzenText(){
+  const t=[];
+  if(gc('m_metformin')) t.push('Metformin');
+  if(gc('m_ass'))       t.push('ASS/Plavix');
+  if(gc('m_glp'))       t.push('GLP-1');
+  if(gc('m_schrittmacher')) t.push('Schrittmacher');
+  if(g('m_sonstiges'))  t.push(g('m_sonstiges'));
+  return t.length? 'Absetzen: '+t.join(', ') : '';
+}
+
+/* ---------- Formular <-> Objekt ---------- */
+function collect(){
+  return {
+    id: currentId || ('AB'+Date.now()),
+    // Patient (Klarname – NUR in anmeldeboegen-Tabelle!)
+    p_name:g('p_name'), p_gebdat:g('p_gebdat'), p_geschlecht:g('p_geschlecht'),
+    p_fallnr:g('p_fallnr'), p_strasse:g('p_strasse'), p_ort:g('p_ort'),
+    p_kasse:g('p_kasse'), p_versnr:g('p_versnr'), p_kostentraeger:g('p_kostentraeger'),
+    p_bkat:g('p_bkat'), p_wunschtermin:g('p_wunschtermin'),
+    begleitperson:gc('c_begleitperson'), terminieren:gc('c_terminieren'),
+    // Eingriff
+    dringlichkeit:radio('dring'), diagnose:g('f_diagnose'), icd:g('f_icd'), ops_code:g('f_ops'),
+    op1_text:g('f_op1_text'), op2_text:g('f_op2_text'), implantat:g('f_implantat'), seite:g('f_seite'),
+    op_datum:g('f_opdatum'), uhrzeit:g('f_uhrzeit'), praeop_tage:g('f_praeop'), postop_tage:g('f_postop'),
+    blut_blutgruppe:gc('b_blutgruppe'), blut_ek:gc('b_ery'), blut_cellsaver:gc('b_cellsaver'),
+    // Medikamente
+    ab_metformin:gc('m_metformin'), ab_ass:gc('m_ass'), ab_glp:gc('m_glp'),
+    ab_schrittmacher:gc('m_schrittmacher'), ab_sonstiges:g('m_sonstiges'),
+    // Kinder / Korsett
+    kind_narkose:gc('k_narkose'), kind_sedierung:gc('k_sedierung'),
+    konsil_neuro:gc('k_neuro'), konsil_anaesth:gc('k_anaesth'),
+    korsett:radio('korsett'), korsett_sonstiges:g('korsett_sonst'),
+    // Diagnostik
+    d_roentgen:gc('d_roentgen'), d_rx_hws:gc('d_rx_hws'), d_rx_lws:gc('d_rx_lws'), d_rx_pan:gc('d_rx_pan'),
+    d_funktion:gc('d_funktion'), d_bending:gc('d_bending'),
+    d_ct:gc('d_ct'), d_ct_nav:gc('d_ct_nav'),
+    d_mrt:gc('d_mrt'), d_mrt_navkopf:gc('d_mrt_navkopf'), d_mrt_funkt:gc('d_mrt_funkt'),
+    d_infiltration:gc('d_infiltration'), d_myelo:gc('d_myelo'), d_sonstiges:g('d_sonstiges'),
+    // Fuss
+    notiz:g('f_notiz'), arzt:g('f_arzt'), erstellt:g('f_erstellt')
+  };
+}
+
+function apply(b){
+  currentId=b.id;
+  setV('p_name',b.p_name); setV('p_gebdat',b.p_gebdat); setV('p_geschlecht',b.p_geschlecht);
+  setV('p_fallnr',b.p_fallnr); setV('p_strasse',b.p_strasse); setV('p_ort',b.p_ort);
+  setV('p_kasse',b.p_kasse); setV('p_versnr',b.p_versnr); setV('p_kostentraeger',b.p_kostentraeger);
+  setV('p_bkat',b.p_bkat); setV('p_wunschtermin',b.p_wunschtermin);
+  setC('c_begleitperson',b.begleitperson); setC('c_terminieren',b.terminieren);
+  const dr=document.querySelector(`input[name="dring"][value="${b.dringlichkeit}"]`); if(dr)dr.checked=true;
+  setV('f_diagnose',b.diagnose); setV('f_icd',b.icd); setV('f_ops',b.ops_code);
+  setV('f_op1_text',b.op1_text); setV('f_op2_text',b.op2_text); setV('f_implantat',b.implantat); setV('f_seite',b.seite);
+  setV('f_opdatum',b.op_datum); setV('f_uhrzeit',b.uhrzeit); setV('f_praeop',b.praeop_tage); setV('f_postop',b.postop_tage);
+  setC('b_blutgruppe',b.blut_blutgruppe); setC('b_ery',b.blut_ek); setC('b_cellsaver',b.blut_cellsaver);
+  setC('m_metformin',b.ab_metformin); setC('m_ass',b.ab_ass); setC('m_glp',b.ab_glp);
+  setC('m_schrittmacher',b.ab_schrittmacher); setV('m_sonstiges',b.ab_sonstiges);
+  setC('k_narkose',b.kind_narkose); setC('k_sedierung',b.kind_sedierung);
+  setC('k_neuro',b.konsil_neuro); setC('k_anaesth',b.konsil_anaesth);
+  const ko=document.querySelector(`input[name="korsett"][value="${b.korsett}"]`); if(ko)ko.checked=true;
+  setV('korsett_sonst',b.korsett_sonstiges);
+  ['d_roentgen','d_rx_hws','d_rx_lws','d_rx_pan','d_funktion','d_bending','d_ct','d_ct_nav','d_mrt','d_mrt_navkopf','d_mrt_funkt','d_infiltration','d_myelo'].forEach(k=>setC(k,b[k]));
+  setV('d_sonstiges',b.d_sonstiges);
+  setV('f_notiz',b.notiz); setV('f_arzt',b.arzt); setV('f_erstellt',b.erstellt);
+}
+
+/* ---------- Speichern ---------- */
+function setState(txt){ document.getElementById('saveState').textContent=txt; }
+
+async function speichern(){
+  if(!(await checkAuth())) return;
+  if(!g('p_name') && !g('f_diagnose')){ alert('Bitte mindestens Name oder Diagnose angeben.'); return; }
+  const bogen = collect();
+  currentId = bogen.id;
+  setState('Speichere …');
+
+  // 1) Vollständiger Bogen (Klarname) -> Tabelle anmeldeboegen
+  const { error:e1 } = await sb.from('anmeldeboegen').upsert(bogen);
+  if(e1){ setState(''); alert('Fehler beim Speichern des Bogens:\n'+e1.message); return; }
+
+  // 2) Pseudonymisierter OP-Plan-Eintrag -> op_eingriffe
+  const notizTeile = [absetzenText(), diagnostikText()? 'Diagnostik: '+diagnostikText():'',
+                      bogen.praeop_tage? 'präop '+bogen.praeop_tage+'d':'',
+                      bogen.postop_tage? 'postop '+bogen.postop_tage+'d':'',
+                      bogen.notiz].filter(Boolean);
+  const op = {
+    id: 'op_'+bogen.id,
+    datum: bogen.op_datum || bogen.erstellt || '',
+    uhrzeit: bogen.uhrzeit || '08:00',
+    patient: opPatientLabel(),
+    diagnose: bogen.diagnose,
+    icd: bogen.icd, icd_text:'',
+    ops_code: bogen.ops_code, ops_text:'',
+    prozedur: [bogen.op1_text, bogen.op2_text].filter(Boolean).join(' + '),
+    seite: bogen.seite, dauer:'', saal:'',
+    anaesthesie:'', implantate: bogen.implantat,
+    op1:'Dr. Mosafer', op2:'', anaest:'', pflege:'',
+    status:'geplant', prioritaet: (bogen.dringlichkeit||'Elektiv').toLowerCase(),
+    monitoring:'', notiz: notizTeile.join(' · ')
+  };
+  let opMsg = '';
+  if(op.datum){
+    const { error:e2 } = await sb.from('op_eingriffe').upsert(op);
+    if(e2) opMsg = '\n\n⚠ OP-Plan-Eintrag nicht angelegt: '+e2.message;
+    else   opMsg = '\n\nOP-Plan-Eintrag „'+op.patient+'" für '+op.datum+' angelegt/aktualisiert.';
+  } else {
+    opMsg = '\n\nHinweis: Kein OP-Datum → noch kein Eintrag im OP-Plan-Kalender.';
+  }
+  setState('Gespeichert ✓');
+  alert('Anmeldebogen gespeichert.'+opMsg);
+}
+
+/* ---------- Drucken / PDF ---------- */
+function druckenPDF(){ window.print(); }
+
+/* ---------- Versenden (E-Mail-Entwurf) ---------- */
+function versenden(){
+  const b=collect();
+  const L=[];
+  L.push('ANMELDEBOGEN WIRBELSÄULENCHIRURGIE');
+  L.push('');
+  L.push('Patient: '+b.p_name+(b.p_gebdat?'  ('+b.p_gebdat+')':''));
+  if(b.p_kasse) L.push('Kasse: '+b.p_kasse+(b.p_versnr?'  Vers-Nr. '+b.p_versnr:''));
+  L.push('Dringlichkeit: '+(b.dringlichkeit||'-'));
+  L.push('Diagnose: '+(b.diagnose||'-'));
+  L.push('Operation: '+[b.op1_text,b.op2_text].filter(Boolean).join(' + '));
+  if(b.implantat) L.push('Implantat: '+b.implantat);
+  if(b.op_datum)  L.push('OP-Datum: '+b.op_datum+(b.uhrzeit?' '+b.uhrzeit:''));
+  if(b.praeop_tage||b.postop_tage) L.push('Verweildauer: präop '+(b.praeop_tage||'0')+'d / postop '+(b.postop_tage||'0')+'d');
+  const dg=diagnostikText(); if(dg) L.push('Diagnostik: '+dg);
+  const ab=absetzenText();   if(ab) L.push(ab);
+  if(b.notiz) L.push('Bemerkung: '+b.notiz);
+  L.push('');
+  L.push('Behandelnder Arzt: '+b.arzt);
+  L.push('');
+  L.push('(Hinweis: Bitte den ausgedruckten/als PDF gespeicherten Bogen als Anhang beifügen.)');
+  const subj='Anmeldebogen '+(b.p_name||'')+(b.op_datum?' · '+b.op_datum:'');
+  location.href='mailto:?subject='+encodeURIComponent(subj)+'&body='+encodeURIComponent(L.join('\n'));
+}
+
+/* ---------- Neuer Bogen ---------- */
+function neuerBogen(){
+  if(!confirm('Neuen leeren Bogen beginnen? Nicht gespeicherte Eingaben gehen verloren.')) return;
+  document.getElementById('bogen').reset();
+  currentId=null;
+  document.querySelector('input[name="dring"][value="Elektiv"]').checked=true;
+  setV('f_arzt','Dr. med. Mostafa Mosafer');
+  setV('f_erstellt', new Date().toISOString().slice(0,10));
+  setState('');
+}
+
+/* ---------- Init ---------- */
+(async function(){
+  setV('f_erstellt', new Date().toISOString().slice(0,10));
+  await checkAuth();
+})();
+</script>
+</body>
+</html>
