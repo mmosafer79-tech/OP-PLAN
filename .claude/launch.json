@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "op-plan",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-c", "import os; os.chdir('/Users/mostafamosafer/Code/OP-PLAN'); from http.server import test, SimpleHTTPRequestHandler; test(SimpleHTTPRequestHandler, port=8777)"],
+      "port": 8777
+    }
+  ]
+}
