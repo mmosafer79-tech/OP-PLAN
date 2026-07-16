@@ -430,14 +430,6 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
         <label>Operateur 2 / Assistent</label>
         <input type="text" id="f_op2" placeholder="z.B. OA Dr. Müller">
       </div>
-      <div class="f">
-        <label>Anästhesist</label>
-        <input type="text" id="f_anaest" placeholder="z.B. Dr. Schmidt">
-      </div>
-      <div class="f">
-        <label>OP-Pflege / Springer</label>
-        <input type="text" id="f_pflege" placeholder="z.B. Schwester Maria">
-      </div>
 
       <!-- Status -->
       <div class="section-divider">Status & Priorität</div>
@@ -886,15 +878,12 @@ function showDetail(id){
     <div class="dp-row"><div class="dp-lbl">Status / Priorität</div><div class="dp-val">${badge(op.status)}${pbadge(op.prioritaet)}</div></div>
     ${row('Patient-ID',op.patient)}
     ${row('Diagnose',op.diagnose)}
-    ${(op.icd||op.icd_text)?`<div class="dp-row"><div class="dp-lbl">ICD-10</div><div class="dp-val">${op.icd||''} ${op.icd_text?'– '+op.icd_text:''}</div></div>`:''}
-    ${(op.ops_code||op.ops_text)?`<div class="dp-row"><div class="dp-lbl">OPS</div><div class="dp-val">${op.ops_code||''} ${op.ops_text?'– '+op.ops_text:''}</div></div>`:''}
     ${row('Saal',op.saal)} ${row('Dauer',op.dauer?op.dauer+' min':null)}
     ${row('Anästhesie',op.anaesthesie)}
     ${row('Seite',op.seite)}
     ${row('Implantate',op.implantate)}
     <div style="border-top:1px solid var(--border);margin:10px 0"></div>
     ${row('Operateur 1',op.op1)} ${row('Operateur 2',op.op2)}
-    ${row('Anästhesist',op.anaest)} ${row('OP-Pflege',op.pflege)}
     ${op.monitoring?`<div style="border-top:1px solid var(--border);margin:10px 0"></div>${row('Monitoring / Besonderheiten',op.monitoring)}`:''}
     ${op.notiz?`${row('Notizen',op.notiz)}`:''}
     <div style="border-top:1px solid var(--border);margin:10px 0"></div>
@@ -990,8 +979,6 @@ function openEdit(id){
   s('f_implantate',op.implantate);
   s('f_op1',op.op1||'Dr. Mosafer');
   s('f_op2',op.op2);
-  s('f_anaest',op.anaest);
-  s('f_pflege',op.pflege);
   s('f_status',op.status||'geplant');
   s('f_prioritaet',op.prioritaet||'elektiv');
   s('f_monitoring',op.monitoring);
@@ -1002,7 +989,7 @@ function openEdit(id){
 function closeModal(){ document.getElementById('overlay').classList.remove('open'); editingId=null; }
 
 function clearForm(){
-  ['f_datum','f_uhrzeit','f_patient','f_diagnose','f_icd','f_icd_text','f_ops','f_ops_text','f_prozedur','f_dauer','f_implantate','f_op1','f_op2','f_anaest','f_pflege','f_monitoring','f_notiz'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['f_datum','f_uhrzeit','f_patient','f_diagnose','f_icd','f_icd_text','f_ops','f_ops_text','f_prozedur','f_dauer','f_implantate','f_op1','f_op2','f_monitoring','f_notiz'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('f_uhrzeit').value='08:00';
   document.getElementById('f_op1').value='Dr. Mosafer';
   ['f_seite','f_saal','f_anaesthesie'].forEach(id=>document.getElementById(id).value='');
@@ -1019,18 +1006,24 @@ function saveOP() {
     ops_code: g('f_ops'), ops_text: g('f_ops_text'), prozedur: g('f_prozedur'),
     seite: g('f_seite'), dauer: g('f_dauer'), saal: g('f_saal'),
     anaesthesie: g('f_anaesthesie'), implantate: g('f_implantate'),
-    op1: g('f_op1'), op2: g('f_op2'), anaest: g('f_anaest'), pflege: g('f_pflege'),
+    op1: g('f_op1'), op2: g('f_op2'),
     status: g('f_status'), prioritaet: g('f_prioritaet'),
     monitoring: g('f_monitoring'), notiz: g('f_notiz')
   };
   if (!op.datum) { alert('Bitte Datum angeben.'); return; }
   if (!op.prozedur && !op.diagnose) { alert('Bitte Prozedur oder Diagnose angeben.'); return; }
-  if (editingId) { const i = ops.findIndex(o => o.id === editingId); if (i > -1) ops[i] = op; }
+  // Über das Formular gemergt, nicht ersetzt: sonst verlöre ein bearbeiteter Fall
+  // die bogen_id (Link zum Anmeldebogen) und die Altwerte anaest/pflege.
+  let gespeichert = op;
+  if (editingId) {
+    const i = ops.findIndex(o => o.id === editingId);
+    if (i > -1) { gespeichert = { ...ops[i], ...op }; ops[i] = gespeichert; }
+  }
   else ops.push(op);
   saveLocal();    // sofort lokal (optimistic UI)
   closeModal();
   render();
-  upsertRemote(op); // dann remote (fire & forget)
+  upsertRemote(gespeichert); // dann remote (fire & forget)
 }
 
 function deleteOP() {
@@ -1070,8 +1063,8 @@ function lookupICD(){
 // CSV EXPORT
 function exportCSV(){
   if(ops.length===0){alert('Keine OP-Einträge vorhanden.');return;}
-  const h=['Datum','Uhrzeit','Patient-ID','Diagnose','ICD-10','ICD-Bezeichnung','OPS','OPS-Bezeichnung','Prozedur','Seite','Dauer (Min)','Saal','Anästhesie','Implantate','Op1','Op2','Anästhesist','OP-Pflege','Status','Priorität','Monitoring','Notizen'];
-  const rows=ops.map(o=>[o.datum,o.uhrzeit,o.patient,o.diagnose,o.icd,o.icd_text,o.ops_code,o.ops_text,o.prozedur,o.seite,o.dauer,o.saal,o.anaesthesie,o.implantate,o.op1,o.op2,o.anaest,o.pflege,o.status,o.prioritaet,o.monitoring,o.notiz].map(v=>`"${(v||'').replace(/"/g,'""')}"`).join(','));
+  const h=['Datum','Uhrzeit','Patient-ID','Diagnose','ICD-10','ICD-Bezeichnung','OPS','OPS-Bezeichnung','Prozedur','Seite','Dauer (Min)','Saal','Anästhesie','Implantate','Op1','Op2','Status','Priorität','Monitoring','Notizen'];
+  const rows=ops.map(o=>[o.datum,o.uhrzeit,o.patient,o.diagnose,o.icd,o.icd_text,o.ops_code,o.ops_text,o.prozedur,o.seite,o.dauer,o.saal,o.anaesthesie,o.implantate,o.op1,o.op2,o.status,o.prioritaet,o.monitoring,o.notiz].map(v=>`"${(v||'').replace(/"/g,'""')}"`).join(','));
   const csv='\uFEFF'+[h.join(','),...rows].join('\n');
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
