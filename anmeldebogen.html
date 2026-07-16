@@ -28,12 +28,19 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;background:var(--bg);colo
 
 /* ---------- Toolbar (bildschirm) ---------- */
 .toolbar{position:sticky;top:0;z-index:40;background:var(--navy);color:#fff;display:flex;align-items:center;gap:10px;padding:9px 18px;box-shadow:0 2px 8px rgba(10,34,64,.25)}
-.toolbar .t-title{font-size:14px;font-weight:600;flex:1}
+.toolbar .t-title{font-size:14px;font-weight:600}
+.toolbar .spacer{flex:1}
 .toolbar a,.toolbar button{font-size:12px;font-weight:500;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.09);color:#fff;padding:7px 13px;border-radius:6px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:5px}
 .toolbar button.gold{background:var(--gold);color:var(--navy);border-color:var(--gold);font-weight:600}
 .toolbar button:hover{background:rgba(255,255,255,.2)}
 .toolbar button.gold:hover{background:#e8c97a}
 #saveState{font-size:11px;color:rgba(255,255,255,.6);min-width:90px}
+
+/* Standort-Umschalter */
+.seg{display:inline-flex;border:1px solid rgba(255,255,255,.25);border-radius:6px;overflow:hidden}
+.seg button{border:none;border-radius:0;background:transparent;padding:7px 12px;font-size:12px}
+.seg button.active{background:#fff;color:var(--navy);font-weight:700}
+.seg button:not(.active):hover{background:rgba(255,255,255,.16)}
 
 /* ---------- Blatt (A4) ---------- */
 .sheet-wrap{padding:22px 12px 60px;display:flex;justify-content:center}
@@ -48,17 +55,24 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;background:var(--bg);colo
 .brand-logo .dot{width:22px;height:22px;border-radius:50%;background:var(--gold);display:inline-block}
 .brand-logo .lg-sub{color:var(--muted);font-weight:400;font-size:11px}
 
+/* Patientenetikett (Traunstein) */
+.etikett{border:1px dashed var(--border-strong);border-radius:5px;height:22mm;display:flex;align-items:center;justify-content:center;color:#b3bfcf;font-size:11px;margin-bottom:9px}
+
 /* Felder-Grundlagen */
 .row{display:grid;gap:0 14px;margin-bottom:2px}
 .field{display:flex;align-items:baseline;gap:6px;padding:3px 0;min-height:26px}
 .field > label{color:var(--muted);font-size:11px;white-space:nowrap;flex-shrink:0}
-.field .fill{flex:1;border:none;border-bottom:1px solid var(--border-strong);background:transparent;font-size:13px;font-family:inherit;color:var(--text);padding:1px 2px 2px}
+.field .fill{flex:1;border:none;border-bottom:1px solid var(--border-strong);background:transparent;font-size:13px;font-family:inherit;color:var(--text);padding:1px 2px 2px;min-width:0}
 .field .fill:focus{outline:none;border-bottom-color:var(--navy);background:#f6f9ff}
+.fill.short{flex:0 0 62px}
 textarea.fill{resize:vertical;min-height:22px;border:1px solid var(--border-strong);border-radius:5px;line-height:1.35}
 input.fill::placeholder,textarea.fill::placeholder{color:#b3bfcf}
+select.fill{border:none;border-bottom:1px solid var(--border-strong);background:transparent;font-family:inherit;font-size:13px;color:var(--text)}
 
 .block{border:1px solid var(--border);border-radius:var(--radius);padding:9px 12px;margin-bottom:9px}
 .block > .bt{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--navy);margin-bottom:6px}
+.block.zbm{background:#f4f6fa}
+.block.zbm .bt{color:var(--muted)}
 
 /* Checkbox-Optik wie Papier: ☐ / ☒ */
 .cbx{display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:12.5px;user-select:none;padding:3px 0}
@@ -73,27 +87,51 @@ input.fill::placeholder,textarea.fill::placeholder{color:#b3bfcf}
 
 .sep{height:1px;background:var(--border);margin:7px 0}
 .hint{font-size:10.5px;color:var(--muted)}
+.tag{font-size:10.5px;font-weight:700;color:var(--navy);white-space:nowrap}
 .two-col{display:grid;grid-template-columns:1fr 1fr;gap:0 18px}
+/* Gerinnung: je Präparat eine Zeile über die volle Blattbreite —
+   Präparat | nicht absetzen | absetzen ab | Datum | Bridging */
+.ger-rows{display:grid;grid-template-columns:auto auto auto 118px auto;align-items:center;gap:2px 12px;justify-content:start}
+.ger-rows .fill{width:118px}
 .diag-sub{margin-left:24px;display:flex;flex-wrap:wrap;gap:2px 18px}
+
+/* Befund-Matrix */
+.bef{width:100%;border-collapse:collapse;font-size:12px}
+.bef th{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);text-align:left;padding:2px 6px;border-bottom:1px solid var(--border)}
+.bef td{padding:3px 6px;border-bottom:1px solid var(--border)}
+.bef td:first-child{font-weight:600;width:64px}
+.bef input[type=text],.bef input[type=date]{width:100%;border:none;border-bottom:1px solid var(--border-strong);background:transparent;font-family:inherit;font-size:12px;padding:1px 2px}
+.bef input:focus{outline:none;border-bottom-color:var(--navy);background:#f6f9ff}
+.bef .hz{width:46px}
 
 /* Fuss */
 .sheet-foot{display:flex;justify-content:space-between;align-items:flex-end;border-top:2px solid var(--line);padding-top:8px;margin-top:10px;gap:16px}
+.sig{border-bottom:1px solid var(--line);height:16mm;min-width:56mm;flex:1}
+.sig-lbl{font-size:10px;color:var(--muted);margin-top:2px}
+
+/* Standort-abhängige Bereiche.
+   Nur ausblenden, nie einblenden — sonst überschreibt das Einblenden den
+   eigentlichen display-Wert des Elements (flex bei .field/.inline-cbx). */
+[data-only].hidden{display:none !important}
 
 /* ---------- Druck ---------- */
 @media print{
   @page{size:A4;margin:10mm}
-  body{background:#fff;font-size:11.5px}
+  body{background:#fff;font-size:11px}
   .toolbar,#authGate{display:none !important}
   .sheet-wrap{padding:0;display:block}
   .sheet{box-shadow:none;border:none;width:auto;padding:0}
-  .field .fill{border-bottom:1px solid #333}
+  .field .fill,select.fill{border-bottom:1px solid #333}
   textarea.fill{border:1px solid #333}
   .block{break-inside:avoid}
   .cbx .mark{border-color:#000}
+  .etikett{border-color:#333}
+  .bef input{border-bottom:1px solid #333}
 }
 @media(max-width:640px){
   .cbx-grid{grid-template-columns:1fr 1fr}
   .two-col{grid-template-columns:1fr}
+  .toolbar{flex-wrap:wrap}
 }
 </style>
 </head>
@@ -114,6 +152,11 @@ input.fill::placeholder,textarea.fill::placeholder{color:#b3bfcf}
 <!-- ============ TOOLBAR ============ -->
 <div class="toolbar">
   <span class="t-title">Anmeldebogen Wirbelsäulenchirurgie</span>
+  <span class="seg">
+    <button id="seg-traunstein" onclick="setStandort('traunstein')">Traunstein</button>
+    <button id="seg-rosenheim"  onclick="setStandort('rosenheim')">Praxis Rosenheim</button>
+  </span>
+  <span class="spacer"></span>
   <span id="saveState"></span>
   <a href="index.html" title="Zurück zum OP-Plan">← OP-Plan</a>
   <button onclick="neuerBogen()" title="Leeren Bogen">＋ Neu</button>
@@ -126,7 +169,7 @@ input.fill::placeholder,textarea.fill::placeholder{color:#b3bfcf}
 <div class="sheet-wrap">
 <form id="bogen" class="sheet" autocomplete="off" onsubmit="return false">
 
-  <!-- KOPF / BRANDING (leicht editierbar via JS-Konstante BRAND) -->
+  <!-- KOPF -->
   <div class="sheet-head">
     <div>
       <div class="brand-title" id="brandTitle">Wirbelsäulenchirurgie</div>
@@ -141,6 +184,7 @@ input.fill::placeholder,textarea.fill::placeholder{color:#b3bfcf}
   <!-- PATIENTENDATEN -->
   <div class="block">
     <div class="bt">Patient</div>
+    <div class="etikett" data-only="traunstein">Patientenetikett</div>
     <div class="row two-col">
       <div class="field"><label>Name, Vorname</label><input class="fill" id="p_name" placeholder="Nachname, Vorname"></div>
       <div class="field"><label>Geb.-Datum</label><input class="fill" id="p_gebdat" type="text" placeholder="TT.MM.JJJJ"></div>
@@ -161,7 +205,7 @@ input.fill::placeholder,textarea.fill::placeholder{color:#b3bfcf}
     </div>
   </div>
 
-  <!-- DRINGLICHKEIT + OP -->
+  <!-- DRINGLICHKEIT + EINGRIFF -->
   <div class="block">
     <div class="bt">Dringlichkeit &amp; Eingriff</div>
     <div class="inline-cbx" style="margin-bottom:6px">
@@ -177,58 +221,179 @@ input.fill::placeholder,textarea.fill::placeholder{color:#b3bfcf}
     <div class="field"><label>1. Operation</label><textarea class="fill" id="f_op1_text" rows="1" placeholder="geplante Operation"></textarea></div>
     <div class="field"><label>2. Operation</label><textarea class="fill" id="f_op2_text" rows="1" placeholder="optional"></textarea></div>
     <div class="two-col">
-      <div class="field"><label>Implantat</label><input class="fill" id="f_implantat" placeholder="z. B. Expedium"></div>
+      <div class="field"><label>Operateur</label><input class="fill" id="f_operateur" placeholder="Name"></div>
+      <div class="field"><label>Qualifikation</label>
+        <label class="cbx"><input type="radio" name="opqual" value="OA"><span class="mark"></span>OA</label>
+        <label class="cbx"><input type="radio" name="opqual" value="FA"><span class="mark"></span>FA</label>
+      </div>
+      <div class="field"><label>OP-Dauer</label><input class="fill short" id="f_dauer" type="number" min="0" placeholder="0"><span class="hint">min</span></div>
       <div class="field"><label>Seite</label><input class="fill" id="f_seite" placeholder="li / re / bds"></div>
     </div>
-    <div class="two-col">
-      <div class="field"><label>OP-Datum</label><input class="fill" id="f_opdatum" type="date"></div>
-      <div class="field"><label>Uhrzeit</label><input class="fill" id="f_uhrzeit" type="time"></div>
-      <div class="field"><label>präop. Tage</label><input class="fill" id="f_praeop" type="number" min="0" placeholder="0"></div>
-      <div class="field"><label>postop. Tage</label><input class="fill" id="f_postop" type="number" min="0" placeholder="0"></div>
+    <div class="sep"></div>
+    <div class="inline-cbx">
+      <span class="tag">Lagerung:</span>
+      <label class="cbx"><input type="radio" name="lagerung" value="Bauchlage"><span class="mark"></span>Bauchlage</label>
+      <label class="cbx"><input type="radio" name="lagerung" value="Rücken"><span class="mark"></span>Rücken</label>
+      <label class="cbx"><input type="radio" name="lagerung" value="Seite mit Vacuum re."><span class="mark"></span>Seite m. Vacuum re.</label>
+      <label class="cbx"><input type="radio" name="lagerung" value="Seite mit Vacuum li."><span class="mark"></span>Seite m. Vacuum li.</label>
+      <label class="cbx"><input type="radio" name="lagerung" value="Extensionstisch"><span class="mark"></span>Ext.-Tisch</label>
     </div>
-    <div class="inline-cbx" style="margin-top:4px">
-      <span class="hint" style="font-weight:700;color:var(--navy)">Blut:</span>
-      <label class="cbx"><input type="checkbox" id="b_blutgruppe"><span class="mark"></span>Blutgruppe</label>
+    <div class="sep"></div>
+    <div class="inline-cbx">
+      <span class="tag">Antibiose:</span>
+      <label class="cbx"><input type="checkbox" id="ab_single"><span class="mark"></span>Single shot</label>
+      <label class="cbx"><input type="checkbox" id="ab_cefu"><span class="mark"></span>Cefuroxim</label>
+      <div class="field" style="flex:1;min-width:160px"><label>sonstiges</label><input class="fill" id="ab_sonst" placeholder="…"></div>
+    </div>
+    <div class="sep"></div>
+    <div class="two-col">
+      <div class="field"><label>Implantat</label><input class="fill" id="f_implantat" placeholder="z. B. Expedium"></div>
+      <label class="cbx"><input type="checkbox" id="f_impl_best"><span class="mark"></span>Implantat muss bestellt werden → sep. Bogen</label>
+    </div>
+    <div class="sep"></div>
+    <div class="inline-cbx">
+      <span class="tag">Blut:</span>
+      <label class="cbx"><input type="checkbox" id="b_blutgruppe"><span class="mark"></span>Blutgruppe inkl. AK</label>
       <label class="cbx"><input type="checkbox" id="b_ery"><span class="mark"></span>EK bereitstellen</label>
       <label class="cbx"><input type="checkbox" id="b_cellsaver"><span class="mark"></span>Cell-Saver</label>
+      <label class="cbx"><input type="checkbox" id="f_icu"><span class="mark"></span>ICU post OP</label>
+    </div>
+  </div>
+
+  <!-- AUFNAHME & PLANUNG -->
+  <div class="block">
+    <div class="bt">Aufnahme &amp; Planung</div>
+    <div class="inline-cbx">
+      <label class="cbx"><input type="radio" name="aufn" value="stationär"><span class="mark"></span>stationär</label>
+      <span class="hint" data-only="traunstein">(→ G-AEP ausfüllen!)</span>
+      <label class="cbx"><input type="radio" name="aufn" value="ambulant"><span class="mark"></span>ambulant</label>
+      <label class="cbx" data-only="traunstein"><input type="checkbox" id="f_gaep"><span class="mark"></span>G-AEP ausgefüllt</label>
+      <label class="cbx" data-only="traunstein"><input type="checkbox" id="f_nzopv"><span class="mark"></span>nicht via ZOPV planen</label>
+      <label class="cbx" data-only="traunstein"><input type="checkbox" id="f_aoz"><span class="mark"></span>OP i. AOZ möglich</label>
+    </div>
+    <div class="sep"></div>
+    <div class="two-col">
+      <div class="field"><label>OP innerhalb</label>
+        <input class="fill short" id="f_innerhalb" type="number" min="0" placeholder="0">
+        <select class="fill" id="f_innerhalb_einheit">
+          <option value="">–</option><option value="Tage">Tage</option><option value="Wochen">Wochen</option><option value="Monate">Monate</option>
+        </select>
+      </div>
+      <div class="field"><label>nicht vor</label><input class="fill short" id="f_nichtvor" type="number" min="0" placeholder="0"><span class="hint">Tagen</span></div>
+      <div class="field"><label>OP-Datum</label><input class="fill" id="f_opdatum" type="date"></div>
+      <div class="field"><label>Uhrzeit</label><input class="fill" id="f_uhrzeit" type="time"></div>
+    </div>
+    <div class="inline-cbx">
+      <span class="tag">Aufnahme:</span>
+      <label class="cbx"><input type="radio" name="aufnzeit" value="am OP-Tag"><span class="mark"></span>am OP-Tag</label>
+      <label class="cbx"><input type="radio" name="aufnzeit" value="1 Tag vor OP"><span class="mark"></span>1 Tag vor OP</label>
+    </div>
+    <div class="two-col">
+      <div class="field"><label>Verweildauer ca.</label><input class="fill short" id="f_verweil" type="number" min="0" placeholder="0"><span class="hint">Tage</span></div>
+      <div class="field"><label>präop. Tage</label><input class="fill short" id="f_praeop" type="number" min="0" placeholder="0">
+        <label style="color:var(--muted);font-size:11px;margin-left:8px">postop. Tage</label><input class="fill short" id="f_postop" type="number" min="0" placeholder="0"></div>
+    </div>
+    <div class="inline-cbx" data-only="traunstein">
+      <span class="tag">Unterbringung:</span>
+      <label class="cbx"><input type="radio" name="unterbr" value="1 Bett"><span class="mark"></span>1 Bett</label>
+      <label class="cbx"><input type="radio" name="unterbr" value="2 Bett"><span class="mark"></span>2 Bett</label>
+      <label class="cbx"><input type="radio" name="unterbr" value="Chefarztwahl"><span class="mark"></span>Chefarztwahl</label>
     </div>
   </div>
 
   <div class="two-col">
-    <!-- MEDIKAMENTE ABSETZEN -->
+    <!-- REHABILITATION -->
     <div class="block">
-      <div class="bt">Medikamente absetzen</div>
-      <label class="cbx"><input type="checkbox" id="m_metformin"><span class="mark"></span>Metformin absetzen</label><br>
-      <label class="cbx"><input type="checkbox" id="m_ass"><span class="mark"></span>ASS / Plavix absetzen</label><br>
-      <label class="cbx"><input type="checkbox" id="m_glp"><span class="mark"></span>Ozempic® / Trulicity® (GLP-1) absetzen</label><br>
-      <label class="cbx"><input type="checkbox" id="m_schrittmacher"><span class="mark"></span>Herzschrittmacher</label>
-      <div class="field" style="margin-top:4px"><label>Sonstiges</label><input class="fill" id="m_sonstiges" placeholder="…"></div>
+      <div class="bt">Rehabilitation</div>
+      <div class="inline-cbx">
+        <label class="cbx"><input type="radio" name="reha" value="ambulant"><span class="mark"></span>ambulant</label>
+        <label class="cbx"><input type="radio" name="reha" value="stationär"><span class="mark"></span>stationär</label>
+        <label class="cbx"><input type="radio" name="reha" value="nicht gewünscht"><span class="mark"></span>nicht gewünscht</label>
+      </div>
+      <div class="inline-cbx" style="margin-top:3px">
+        <label class="cbx"><input type="checkbox" id="r_ahb"><span class="mark"></span>AHB</label>
+        <label class="cbx"><input type="checkbox" id="r_6wo"><span class="mark"></span>6 Wo. nach OP</label>
+      </div>
+      <div class="field"><label>Reha planen ab</label><input class="fill" id="r_ab" type="date"></div>
+      <div class="field"><label>bevorzugt in</label><input class="fill" id="r_klinik" placeholder="Wunschklinik"></div>
+      <div class="field" data-only="traunstein"><label>Sozialdienstinfo durch ZBM am</label><input class="fill" id="r_sozial" type="date"></div>
     </div>
 
-    <!-- KINDER / KONSILE -->
+    <!-- KINDER / KONSILE / KORSETT -->
     <div class="block">
-      <div class="bt">Kinder / Konsile</div>
+      <div class="bt">Kinder / Konsile / Korsett</div>
       <div class="inline-cbx">
         <label class="cbx"><input type="checkbox" id="k_narkose"><span class="mark"></span>Narkose</label>
         <label class="cbx"><input type="checkbox" id="k_sedierung"><span class="mark"></span>in Sedierung</label>
       </div>
-      <div class="inline-cbx" style="margin-top:3px">
-        <label class="cbx"><input type="checkbox" id="k_neuro"><span class="mark"></span>Neurologen</label>
-        <label class="cbx"><input type="checkbox" id="k_anaesth"><span class="mark"></span>Anästhesie</label>
-      </div>
       <div class="sep"></div>
-      <div class="bt" style="margin-bottom:4px">Korsettversorgung</div>
+      <div class="hint" style="font-weight:700;color:var(--navy);margin-bottom:3px">Ausstehende Konsile (stationär)</div>
+      <div class="field"><label class="cbx" style="flex-shrink:0"><input type="checkbox" id="k_kardio"><span class="mark"></span>Kardiologie</label><input class="fill" id="k_kardio_text" placeholder="…"></div>
+      <div class="field"><label class="cbx" style="flex-shrink:0"><input type="checkbox" id="k_neuro"><span class="mark"></span>Neurologie</label><input class="fill" id="k_neuro_text" placeholder="…"></div>
+      <div class="field"><label class="cbx" style="flex-shrink:0"><input type="checkbox" id="k_anaesth"><span class="mark"></span>Anästhesie</label><input class="fill" id="k_sonst" placeholder="weitere…"></div>
+      <div class="sep"></div>
       <div class="inline-cbx">
+        <span class="tag">Korsett:</span>
         <label class="cbx"><input type="radio" name="korsett" value="Ja"><span class="mark"></span>Ja</label>
         <label class="cbx"><input type="radio" name="korsett" value="Nein"><span class="mark"></span>Nein</label>
+        <div class="field" style="flex:1;min-width:120px"><input class="fill" id="korsett_sonst" placeholder="Sonstiges…"></div>
       </div>
-      <div class="field" style="margin-top:4px"><label>Sonstiges</label><input class="fill" id="korsett_sonst" placeholder="…"></div>
     </div>
   </div>
 
-  <!-- DIAGNOSTIK -->
+  <!-- GERINNUNG & MEDIKAMENTE -->
   <div class="block">
-    <div class="bt">Diagnostik</div>
+    <div class="bt">Gerinnung &amp; Medikamente</div>
+    <label class="cbx"><input type="checkbox" id="m_keine"><span class="mark"></span><b>Pat. nimmt keine Medikamente</b></label>
+    <div class="sep"></div>
+    <div class="ger-rows">
+      <span class="tag">ASS</span>
+      <label class="cbx"><input type="radio" name="ass" value="nicht absetzen"><span class="mark"></span>nicht absetzen</label>
+      <label class="cbx"><input type="radio" name="ass" value="absetzen ab"><span class="mark"></span>absetzen ab</label>
+      <input class="fill" id="m_ass_ab" type="date">
+      <span></span>
+
+      <span class="tag">Clopidogrel / OAK</span>
+      <label class="cbx"><input type="radio" name="clopi" value="nicht absetzen"><span class="mark"></span>nicht absetzen</label>
+      <label class="cbx"><input type="radio" name="clopi" value="absetzen ab"><span class="mark"></span>absetzen ab</label>
+      <input class="fill" id="m_clopi_ab" type="date">
+      <span></span>
+
+      <span class="tag">Marcumar</span>
+      <label class="cbx"><input type="radio" name="marc" value="nicht absetzen"><span class="mark"></span>nicht absetzen</label>
+      <label class="cbx"><input type="radio" name="marc" value="absetzen ab"><span class="mark"></span>absetzen ab</label>
+      <input class="fill" id="m_marc_ab" type="date">
+      <label class="cbx"><input type="radio" name="marc" value="Bridging"><span class="mark"></span>Bridging</label>
+    </div>
+    <div class="sep"></div>
+    <div class="two-col">
+      <div>
+        <label class="cbx"><input type="checkbox" id="m_metformin"><span class="mark"></span>Metformin absetzen</label><br>
+        <label class="cbx"><input type="checkbox" id="m_glp"><span class="mark"></span>Ozempic® / Trulicity® (GLP-1) absetzen</label><br>
+        <label class="cbx"><input type="checkbox" id="m_schrittmacher"><span class="mark"></span>Herzschrittmacher</label><br>
+        <label class="cbx"><input type="checkbox" id="f_abfuehren"><span class="mark"></span>präoperativ abführen</label>
+      </div>
+      <div>
+        <div class="field"><label>Sonstiges</label><input class="fill" id="m_sonstiges" placeholder="…"></div>
+        <div class="field"><label>Allergien</label><input class="fill" id="f_allergien" placeholder="…"></div>
+      </div>
+    </div>
+    <div class="sep"></div>
+    <div class="inline-cbx">
+      <span class="tag">Dialyse:</span>
+      <label class="cbx"><input type="checkbox" class="dia" value="Mo"><span class="mark"></span>Mo</label>
+      <label class="cbx"><input type="checkbox" class="dia" value="Di"><span class="mark"></span>Di</label>
+      <label class="cbx"><input type="checkbox" class="dia" value="Mi"><span class="mark"></span>Mi</label>
+      <label class="cbx"><input type="checkbox" class="dia" value="Do"><span class="mark"></span>Do</label>
+      <label class="cbx"><input type="checkbox" class="dia" value="Fr"><span class="mark"></span>Fr</label>
+      <label class="cbx"><input type="checkbox" class="dia" value="Sa"><span class="mark"></span>Sa</label>
+    </div>
+    <div class="hint" style="margin-top:4px">Entscheidung ggf. gemeinsam mit Anästhesie bzw. Kardiologie.</div>
+  </div>
+
+  <!-- DIAGNOSTIK (anzufordern) -->
+  <div class="block">
+    <div class="bt">Diagnostik anfordern</div>
     <div class="cbx-grid two">
       <div>
         <label class="cbx"><input type="checkbox" id="d_roentgen"><span class="mark"></span><b>Röntgen</b></label>
@@ -254,17 +419,77 @@ input.fill::placeholder,textarea.fill::placeholder{color:#b3bfcf}
         </div>
         <label class="cbx"><input type="checkbox" id="d_infiltration"><span class="mark"></span>diagn. Infiltration</label>
         <label class="cbx"><input type="checkbox" id="d_myelo"><span class="mark"></span>Myelographie</label>
-        <div class="field" style="margin-top:4px"><label>Sonstiges / Konsile</label><input class="fill" id="d_sonstiges" placeholder="…"></div>
+        <div class="field" style="margin-top:4px"><label>Sonstiges</label><input class="fill" id="d_sonstiges" placeholder="…"></div>
       </div>
     </div>
   </div>
 
-  <!-- BEMERKUNG + FUSS -->
+  <!-- BEFUNDE PRÄSTATIONÄR -->
+  <div class="block">
+    <div class="bt">Befunde prästationär</div>
+    <table class="bef">
+      <thead><tr><th></th><th>Status</th><th>geplant am</th><th class="hz">Hz</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Rö</td>
+          <td><label class="cbx"><input type="radio" name="bef_ro" value="vorhanden"><span class="mark"></span>vorh.</label>
+              <label class="cbx"><input type="radio" name="bef_ro" value="ausstehend"><span class="mark"></span>ausst.</label></td>
+          <td><input type="date" id="bef_ro_geplant"></td>
+          <td><input type="text" class="hz" id="bef_ro_hz"></td>
+        </tr>
+        <tr>
+          <td>CT</td>
+          <td><label class="cbx"><input type="radio" name="bef_ct" value="vorhanden"><span class="mark"></span>vorh.</label>
+              <label class="cbx"><input type="radio" name="bef_ct" value="ausstehend"><span class="mark"></span>ausst.</label></td>
+          <td><input type="date" id="bef_ct_geplant"></td>
+          <td><input type="text" class="hz" id="bef_ct_hz"></td>
+        </tr>
+        <tr>
+          <td>MRT</td>
+          <td><label class="cbx"><input type="radio" name="bef_mrt" value="vorhanden"><span class="mark"></span>vorh.</label>
+              <label class="cbx"><input type="radio" name="bef_mrt" value="ausstehend"><span class="mark"></span>ausst.</label></td>
+          <td><input type="date" id="bef_mrt_geplant"></td>
+          <td><input type="text" class="hz" id="bef_mrt_hz"></td>
+        </tr>
+        <tr>
+          <td><input type="text" id="bef_sonst_label" placeholder="…"></td>
+          <td><label class="cbx"><input type="radio" name="bef_sonst" value="vorhanden"><span class="mark"></span>vorh.</label>
+              <label class="cbx"><input type="radio" name="bef_sonst" value="ausstehend"><span class="mark"></span>ausst.</label></td>
+          <td><input type="date" id="bef_sonst_geplant"></td>
+          <td><input type="text" class="hz" id="bef_sonst_hz"></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- BEMERKUNG -->
   <div class="field"><label>Bemerkung</label><textarea class="fill" id="f_notiz" rows="2" placeholder="freie Notiz"></textarea></div>
 
+  <!-- FUSS: ANORDNENDER ARZT -->
   <div class="sheet-foot">
-    <div class="field" style="flex:1"><label>Behandelnder Arzt</label><input class="fill" id="f_arzt" value="Dr. med. Mostafa Mosafer"></div>
-    <div class="field" style="width:150px"><label>Datum</label><input class="fill" id="f_erstellt" type="date"></div>
+    <div style="flex:1">
+      <div class="field"><label>Anordnender Arzt</label><input class="fill" id="f_arzt" value="Dr. med. Mostafa Mosafer"></div>
+      <div class="field"><label>Tel. / WLAN für Rückfragen</label><input class="fill" id="f_arzt_tel" placeholder="Durchwahl"></div>
+    </div>
+    <div style="width:60mm">
+      <div class="sig"></div>
+      <div class="sig-lbl">Unterschrift</div>
+    </div>
+    <div class="field" style="width:130px"><label>Datum</label><input class="fill" id="f_erstellt" type="date"></div>
+  </div>
+
+  <!-- ZBM (nur Traunstein) -->
+  <div class="block zbm" data-only="traunstein" style="margin-top:9px">
+    <div class="bt">Vom ZBM auszufüllen</div>
+    <div class="two-col">
+      <div class="field"><label>OPV</label><input class="fill" id="z_opv"></div>
+      <div class="field"><label>OPV Anästhesie</label><input class="fill" id="z_opv_anae"></div>
+      <div class="field"><label>OP am</label><input class="fill" id="z_op_am" type="date"></div>
+      <div class="field"><label>Tel. Patient</label><input class="fill" id="z_tel_pat"></div>
+      <div class="field"><label>Tel. Angehörige</label><input class="fill" id="z_tel_angeh"></div>
+      <div class="field"><label>Betreuer</label><input class="fill" id="z_betreuer"></div>
+    </div>
+    <div class="hint" style="margin-top:6px">ZBM-Fax Traunstein: 0861/705-2219 · ZBM-Fax Reichenhall: 08651/772619</div>
   </div>
 
 </form>
@@ -274,21 +499,44 @@ input.fill::placeholder,textarea.fill::placeholder{color:#b3bfcf}
 <script>
 /* ============================================================
    ANMELDEBOGEN · Wirbelsäulenchirurgie
+   Zusammenführung des eigenen Bogens mit der KSOB-Sprechstunden-
+   anforderung (Traunstein). Ein Formular, zwei Standorte.
+
    Speichert nach Supabase (Tabelle 'anmeldeboegen', auth-only)
-   + erzeugt pseudonymisierten OP-Plan-Eintrag (op_eingriffe)
+   + erzeugt/aktualisiert den OP-Plan-Eintrag (op_eingriffe).
+   Aufruf mit ?id=AB… lädt einen vorhandenen Bogen zum Bearbeiten.
    ============================================================ */
 
-/* ---- Branding (hier anpassen, z. B. für Klinikum Traunstein) ---- */
-const BRAND = {
-  title:  'Wirbelsäulenchirurgie',
-  sub:    'Anmeldebogen zur operativen Behandlung',
-  clinic: 'Praxis Mosafer Spine',
-  clinicSub: 'Wirbelsäulen- & Skoliosechirurgie'
+/* ---- Standort-abhängiges Branding ---- */
+const STANDORTE = {
+  traunstein: {
+    title: 'Wirbelsäulenchirurgie',
+    sub:   'Sprechstundenanforderung / Anmeldung zur operativen Behandlung',
+    clinic:'Klinikum Traunstein',
+    clinicSub:'Kliniken Südostbayern AG'
+  },
+  rosenheim: {
+    title: 'Wirbelsäulenchirurgie',
+    sub:   'Anmeldebogen zur operativen Behandlung',
+    clinic:'Praxis Mosafer Spine',
+    clinicSub:'Wirbelsäulen- & Skoliosechirurgie'
+  }
 };
-document.getElementById('brandTitle').textContent = BRAND.title;
-document.getElementById('brandSub').textContent   = BRAND.sub;
-document.getElementById('brandClinic').textContent= BRAND.clinic;
-document.getElementById('brandClinicSub').textContent = BRAND.clinicSub;
+let standort = 'traunstein';
+
+function setStandort(s){
+  standort = STANDORTE[s] ? s : 'traunstein';
+  const B = STANDORTE[standort];
+  document.getElementById('brandTitle').textContent = B.title;
+  document.getElementById('brandSub').textContent   = B.sub;
+  document.getElementById('brandClinic').textContent= B.clinic;
+  document.getElementById('brandClinicSub').textContent = B.clinicSub;
+  document.querySelectorAll('[data-only]').forEach(el=>{
+    el.classList.toggle('hidden', el.dataset.only !== standort);
+  });
+  document.getElementById('seg-traunstein').classList.toggle('active', standort==='traunstein');
+  document.getElementById('seg-rosenheim').classList.toggle('active',  standort==='rosenheim');
+}
 
 /* ---- Supabase (gleiche Instanz wie OP-Plan) ---- */
 const SUPABASE_URL  = 'https://rcchxtczknnqqyavmxzv.supabase.co';
@@ -311,6 +559,7 @@ async function agSignIn(){
   const { error } = await sb.auth.signInWithPassword({ email, password:pass });
   if(error){ err.textContent='Anmeldung fehlgeschlagen: '+error.message; return; }
   checkAuth();
+  ladeAusURL();
 }
 sb.auth.onAuthStateChange(()=>checkAuth());
 
@@ -320,6 +569,7 @@ const gc = id => !!document.getElementById(id)?.checked;
 const radio = name => document.querySelector(`input[name="${name}"]:checked`)?.value || '';
 const setV = (id,v)=>{ const el=document.getElementById(id); if(el) el.value = v ?? ''; };
 const setC = (id,v)=>{ const el=document.getElementById(id); if(el) el.checked = !!v; };
+const setR = (name,v)=>{ if(!v) return; const el=document.querySelector(`input[name="${name}"][value="${v}"]`); if(el) el.checked=true; };
 
 /* Patient-Feld für OP-Plan: gleiche Konvention wie bestehende Einträge
    -> "Nachname, Vorname (GebDat)". op_eingriffe ist auth-geschützt (RLS).
@@ -329,7 +579,6 @@ function opPatientLabel(){
   const name = g('p_name'); const gd = g('p_gebdat');
   if(!name) return 'Patient';
   if(!PSEUDONYM) return name + (gd? ' ('+gd+')' : '');
-  // Kürzel-Variante: "Sch., J. · 1988"
   const parts = name.split(',').map(s=>s.trim());
   const nach = (parts[0]||'').slice(0,3);
   const vorInit = (parts[1]||'').charAt(0);
@@ -351,21 +600,34 @@ function diagnostikText(){
   return t.join(', ');
 }
 
-/* Absetz-Kürzel */
+/* Gerinnungs-/Absetz-Kürzel für die OP-Plan-Notiz */
 function absetzenText(){
+  if(gc('m_keine')) return 'Keine Medikamente';
   const t=[];
-  if(gc('m_metformin')) t.push('Metformin');
-  if(gc('m_ass'))       t.push('ASS/Plavix');
-  if(gc('m_glp'))       t.push('GLP-1');
+  const ger=(label,name,abId)=>{
+    const m=radio(name); if(!m) return;
+    if(m==='absetzen ab') t.push(label+' ab '+(g(abId)||'?'));
+    else t.push(label+' '+m);
+  };
+  ger('ASS','ass','m_ass_ab');
+  ger('Clopi/OAK','clopi','m_clopi_ab');
+  ger('Marcumar','marc','m_marc_ab');
+  if(gc('m_metformin')) t.push('Metformin absetzen');
+  if(gc('m_glp'))       t.push('GLP-1 absetzen');
   if(gc('m_schrittmacher')) t.push('Schrittmacher');
   if(g('m_sonstiges'))  t.push(g('m_sonstiges'));
-  return t.length? 'Absetzen: '+t.join(', ') : '';
+  return t.length? 'Gerinnung/Medikamente: '+t.join(', ') : '';
+}
+
+function dialyseTage(){
+  return [...document.querySelectorAll('.dia:checked')].map(el=>el.value).join(', ');
 }
 
 /* ---------- Formular <-> Objekt ---------- */
 function collect(){
   return {
     id: currentId || ('AB'+Date.now()),
+    standort,
     // Patient (Klarname – NUR in anmeldeboegen-Tabelle!)
     p_name:g('p_name'), p_gebdat:g('p_gebdat'), p_geschlecht:g('p_geschlecht'),
     p_fallnr:g('p_fallnr'), p_strasse:g('p_strasse'), p_ort:g('p_ort'),
@@ -374,53 +636,126 @@ function collect(){
     begleitperson:gc('c_begleitperson'), terminieren:gc('c_terminieren'),
     // Eingriff
     dringlichkeit:radio('dring'), diagnose:g('f_diagnose'), icd:g('f_icd'), ops_code:g('f_ops'),
-    op1_text:g('f_op1_text'), op2_text:g('f_op2_text'), implantat:g('f_implantat'), seite:g('f_seite'),
-    op_datum:g('f_opdatum'), uhrzeit:g('f_uhrzeit'), praeop_tage:g('f_praeop'), postop_tage:g('f_postop'),
+    op1_text:g('f_op1_text'), op2_text:g('f_op2_text'),
+    op_qualifikation:radio('opqual'), op_dauer:g('f_dauer'),
+    lagerung:radio('lagerung'),
+    ab_single_shot:gc('ab_single'), ab_cefuroxim:gc('ab_cefu'), ab_antibiose_sonst:g('ab_sonst'),
+    implantat:g('f_implantat'), implantat_bestellen:gc('f_impl_best'), seite:g('f_seite'),
+    op_datum:g('f_opdatum'), uhrzeit:g('f_uhrzeit'),
     blut_blutgruppe:gc('b_blutgruppe'), blut_ek:gc('b_ery'), blut_cellsaver:gc('b_cellsaver'),
-    // Medikamente
-    ab_metformin:gc('m_metformin'), ab_ass:gc('m_ass'), ab_glp:gc('m_glp'),
+    icu_postop:gc('f_icu'),
+    // Aufnahme & Planung
+    aufnahmemodus:radio('aufn'), g_aep:gc('f_gaep'), nicht_zopv:gc('f_nzopv'), aoz_moeglich:gc('f_aoz'),
+    op_innerhalb_wert:g('f_innerhalb'), op_innerhalb_einheit:g('f_innerhalb_einheit'),
+    nicht_vor_tagen:g('f_nichtvor'), aufnahme_zeitpunkt:radio('aufnzeit'),
+    verweildauer_tage:g('f_verweil'), praeop_tage:g('f_praeop'), postop_tage:g('f_postop'),
+    unterbringung:radio('unterbr'),
+    // Reha
+    reha_art:radio('reha'), reha_ahb:gc('r_ahb'), reha_6wo:gc('r_6wo'),
+    reha_planen_ab:g('r_ab'), reha_wunschklinik:g('r_klinik'), sozialdienst_am:g('r_sozial'),
+    // Gerinnung & Medikamente
+    keine_medikamente:gc('m_keine'),
+    ass_modus:radio('ass'), ass_ab:g('m_ass_ab'),
+    clopi_modus:radio('clopi'), clopi_ab:g('m_clopi_ab'),
+    marcumar_modus:radio('marc'), marcumar_ab:g('m_marc_ab'),
+    ab_metformin:gc('m_metformin'), ab_glp:gc('m_glp'),
     ab_schrittmacher:gc('m_schrittmacher'), ab_sonstiges:g('m_sonstiges'),
-    // Kinder / Korsett
+    allergien:g('f_allergien'), dialyse_tage:dialyseTage(), praeop_abfuehren:gc('f_abfuehren'),
+    // Kinder / Konsile / Korsett
     kind_narkose:gc('k_narkose'), kind_sedierung:gc('k_sedierung'),
-    konsil_neuro:gc('k_neuro'), konsil_anaesth:gc('k_anaesth'),
+    konsil_kardio:gc('k_kardio'), konsil_kardio_text:g('k_kardio_text'),
+    konsil_neuro:gc('k_neuro'), konsil_neuro_text:g('k_neuro_text'),
+    konsil_anaesth:gc('k_anaesth'), konsil_sonst:g('k_sonst'),
     korsett:radio('korsett'), korsett_sonstiges:g('korsett_sonst'),
-    // Diagnostik
+    // Diagnostik anfordern
     d_roentgen:gc('d_roentgen'), d_rx_hws:gc('d_rx_hws'), d_rx_lws:gc('d_rx_lws'), d_rx_pan:gc('d_rx_pan'),
     d_funktion:gc('d_funktion'), d_bending:gc('d_bending'),
     d_ct:gc('d_ct'), d_ct_nav:gc('d_ct_nav'),
     d_mrt:gc('d_mrt'), d_mrt_navkopf:gc('d_mrt_navkopf'), d_mrt_funkt:gc('d_mrt_funkt'),
     d_infiltration:gc('d_infiltration'), d_myelo:gc('d_myelo'), d_sonstiges:g('d_sonstiges'),
+    // Befunde prästationär
+    bef_ro_status:radio('bef_ro'), bef_ro_geplant:g('bef_ro_geplant'), bef_ro_hz:g('bef_ro_hz'),
+    bef_ct_status:radio('bef_ct'), bef_ct_geplant:g('bef_ct_geplant'), bef_ct_hz:g('bef_ct_hz'),
+    bef_mrt_status:radio('bef_mrt'), bef_mrt_geplant:g('bef_mrt_geplant'), bef_mrt_hz:g('bef_mrt_hz'),
+    bef_sonst_label:g('bef_sonst_label'), bef_sonst_status:radio('bef_sonst'),
+    bef_sonst_geplant:g('bef_sonst_geplant'), bef_sonst_hz:g('bef_sonst_hz'),
     // Fuss
-    notiz:g('f_notiz'), arzt:g('f_arzt'), erstellt:g('f_erstellt')
+    notiz:g('f_notiz'), arzt:g('f_arzt'), arzt_tel:g('f_arzt_tel'), erstellt:g('f_erstellt'),
+    // ZBM
+    zbm_opv:g('z_opv'), zbm_opv_anae:g('z_opv_anae'), zbm_op_am:g('z_op_am'),
+    tel_pat:g('z_tel_pat'), tel_angeh:g('z_tel_angeh'), betreuer:g('z_betreuer')
   };
 }
 
 function apply(b){
   currentId=b.id;
+  setStandort(b.standort || 'traunstein');
   setV('p_name',b.p_name); setV('p_gebdat',b.p_gebdat); setV('p_geschlecht',b.p_geschlecht);
   setV('p_fallnr',b.p_fallnr); setV('p_strasse',b.p_strasse); setV('p_ort',b.p_ort);
   setV('p_kasse',b.p_kasse); setV('p_versnr',b.p_versnr); setV('p_kostentraeger',b.p_kostentraeger);
   setV('p_bkat',b.p_bkat); setV('p_wunschtermin',b.p_wunschtermin);
   setC('c_begleitperson',b.begleitperson); setC('c_terminieren',b.terminieren);
-  const dr=document.querySelector(`input[name="dring"][value="${b.dringlichkeit}"]`); if(dr)dr.checked=true;
+  setR('dring',b.dringlichkeit);
   setV('f_diagnose',b.diagnose); setV('f_icd',b.icd); setV('f_ops',b.ops_code);
-  setV('f_op1_text',b.op1_text); setV('f_op2_text',b.op2_text); setV('f_implantat',b.implantat); setV('f_seite',b.seite);
-  setV('f_opdatum',b.op_datum); setV('f_uhrzeit',b.uhrzeit); setV('f_praeop',b.praeop_tage); setV('f_postop',b.postop_tage);
+  setV('f_op1_text',b.op1_text); setV('f_op2_text',b.op2_text);
+  setR('opqual',b.op_qualifikation); setV('f_dauer',b.op_dauer);
+  setR('lagerung',b.lagerung);
+  setC('ab_single',b.ab_single_shot); setC('ab_cefu',b.ab_cefuroxim); setV('ab_sonst',b.ab_antibiose_sonst);
+  setV('f_implantat',b.implantat); setC('f_impl_best',b.implantat_bestellen); setV('f_seite',b.seite);
+  setV('f_opdatum',b.op_datum); setV('f_uhrzeit',b.uhrzeit);
   setC('b_blutgruppe',b.blut_blutgruppe); setC('b_ery',b.blut_ek); setC('b_cellsaver',b.blut_cellsaver);
-  setC('m_metformin',b.ab_metformin); setC('m_ass',b.ab_ass); setC('m_glp',b.ab_glp);
+  setC('f_icu',b.icu_postop);
+  setR('aufn',b.aufnahmemodus); setC('f_gaep',b.g_aep); setC('f_nzopv',b.nicht_zopv); setC('f_aoz',b.aoz_moeglich);
+  setV('f_innerhalb',b.op_innerhalb_wert); setV('f_innerhalb_einheit',b.op_innerhalb_einheit);
+  setV('f_nichtvor',b.nicht_vor_tagen); setR('aufnzeit',b.aufnahme_zeitpunkt);
+  setV('f_verweil',b.verweildauer_tage); setV('f_praeop',b.praeop_tage); setV('f_postop',b.postop_tage);
+  setR('unterbr',b.unterbringung);
+  setR('reha',b.reha_art); setC('r_ahb',b.reha_ahb); setC('r_6wo',b.reha_6wo);
+  setV('r_ab',b.reha_planen_ab); setV('r_klinik',b.reha_wunschklinik); setV('r_sozial',b.sozialdienst_am);
+  setC('m_keine',b.keine_medikamente);
+  setR('ass',b.ass_modus); setV('m_ass_ab',b.ass_ab);
+  setR('clopi',b.clopi_modus); setV('m_clopi_ab',b.clopi_ab);
+  setR('marc',b.marcumar_modus); setV('m_marc_ab',b.marcumar_ab);
+  setC('m_metformin',b.ab_metformin); setC('m_glp',b.ab_glp);
   setC('m_schrittmacher',b.ab_schrittmacher); setV('m_sonstiges',b.ab_sonstiges);
+  setV('f_allergien',b.allergien); setC('f_abfuehren',b.praeop_abfuehren);
+  const tage=(b.dialyse_tage||'').split(',').map(s=>s.trim());
+  document.querySelectorAll('.dia').forEach(el=>{ el.checked = tage.includes(el.value); });
   setC('k_narkose',b.kind_narkose); setC('k_sedierung',b.kind_sedierung);
-  setC('k_neuro',b.konsil_neuro); setC('k_anaesth',b.konsil_anaesth);
-  const ko=document.querySelector(`input[name="korsett"][value="${b.korsett}"]`); if(ko)ko.checked=true;
-  setV('korsett_sonst',b.korsett_sonstiges);
+  setC('k_kardio',b.konsil_kardio); setV('k_kardio_text',b.konsil_kardio_text);
+  setC('k_neuro',b.konsil_neuro); setV('k_neuro_text',b.konsil_neuro_text);
+  setC('k_anaesth',b.konsil_anaesth); setV('k_sonst',b.konsil_sonst);
+  setR('korsett',b.korsett); setV('korsett_sonst',b.korsett_sonstiges);
   ['d_roentgen','d_rx_hws','d_rx_lws','d_rx_pan','d_funktion','d_bending','d_ct','d_ct_nav','d_mrt','d_mrt_navkopf','d_mrt_funkt','d_infiltration','d_myelo'].forEach(k=>setC(k,b[k]));
   setV('d_sonstiges',b.d_sonstiges);
-  setV('f_notiz',b.notiz); setV('f_arzt',b.arzt); setV('f_erstellt',b.erstellt);
+  setR('bef_ro',b.bef_ro_status);   setV('bef_ro_geplant',b.bef_ro_geplant);   setV('bef_ro_hz',b.bef_ro_hz);
+  setR('bef_ct',b.bef_ct_status);   setV('bef_ct_geplant',b.bef_ct_geplant);   setV('bef_ct_hz',b.bef_ct_hz);
+  setR('bef_mrt',b.bef_mrt_status); setV('bef_mrt_geplant',b.bef_mrt_geplant); setV('bef_mrt_hz',b.bef_mrt_hz);
+  setV('bef_sonst_label',b.bef_sonst_label); setR('bef_sonst',b.bef_sonst_status);
+  setV('bef_sonst_geplant',b.bef_sonst_geplant); setV('bef_sonst_hz',b.bef_sonst_hz);
+  setV('f_notiz',b.notiz); setV('f_arzt',b.arzt); setV('f_arzt_tel',b.arzt_tel); setV('f_erstellt',b.erstellt);
+  setV('z_opv',b.zbm_opv); setV('z_opv_anae',b.zbm_opv_anae); setV('z_op_am',b.zbm_op_am);
+  setV('z_tel_pat',b.tel_pat); setV('z_tel_angeh',b.tel_angeh); setV('z_betreuer',b.betreuer);
+}
+
+/* ---------- Laden ---------- */
+function setState(txt){ document.getElementById('saveState').textContent=txt; }
+
+async function ladeBogen(id){
+  setState('Lade …');
+  const { data, error } = await sb.from('anmeldeboegen').select('*').eq('id', id).maybeSingle();
+  if(error){ setState(''); alert('Bogen konnte nicht geladen werden:\n'+error.message); return; }
+  if(!data){ setState(''); alert('Kein Anmeldebogen mit der ID '+id+' gefunden.'); return; }
+  apply(data);
+  setState('Geladen ✓');
+}
+
+async function ladeAusURL(){
+  const id = new URLSearchParams(location.search).get('id');
+  if(id) await ladeBogen(id);
 }
 
 /* ---------- Speichern ---------- */
-function setState(txt){ document.getElementById('saveState').textContent=txt; }
-
 async function speichern(){
   if(!(await checkAuth())) return;
   if(!g('p_name') && !g('f_diagnose')){ alert('Bitte mindestens Name oder Diagnose angeben.'); return; }
@@ -432,13 +767,16 @@ async function speichern(){
   const { error:e1 } = await sb.from('anmeldeboegen').upsert(bogen);
   if(e1){ setState(''); alert('Fehler beim Speichern des Bogens:\n'+e1.message); return; }
 
-  // 2) Pseudonymisierter OP-Plan-Eintrag -> op_eingriffe
+  // 2) OP-Plan-Eintrag -> op_eingriffe (via bogen_id fest verknüpft)
   const notizTeile = [absetzenText(), diagnostikText()? 'Diagnostik: '+diagnostikText():'',
-                      bogen.praeop_tage? 'präop '+bogen.praeop_tage+'d':'',
-                      bogen.postop_tage? 'postop '+bogen.postop_tage+'d':'',
+                      bogen.allergien? 'Allergien: '+bogen.allergien:'',
+                      bogen.dialyse_tage? 'Dialyse: '+bogen.dialyse_tage:'',
+                      bogen.icu_postop? 'ICU postop':'',
+                      bogen.verweildauer_tage? 'Verweildauer ca. '+bogen.verweildauer_tage+'d':'',
                       bogen.notiz].filter(Boolean);
   const op = {
     id: 'op_'+bogen.id,
+    bogen_id: bogen.id,
     datum: bogen.op_datum || bogen.erstellt || '',
     uhrzeit: bogen.uhrzeit || '08:00',
     patient: opPatientLabel(),
@@ -446,11 +784,12 @@ async function speichern(){
     icd: bogen.icd, icd_text:'',
     ops_code: bogen.ops_code, ops_text:'',
     prozedur: [bogen.op1_text, bogen.op2_text].filter(Boolean).join(' + '),
-    seite: bogen.seite, dauer:'', saal:'',
+    seite: bogen.seite, dauer: bogen.op_dauer || '', saal:'',
     anaesthesie:'', implantate: bogen.implantat,
     op1:'Dr. Mosafer', op2:'', anaest:'', pflege:'',
     status:'geplant', prioritaet: (bogen.dringlichkeit||'Elektiv').toLowerCase(),
-    monitoring:'', notiz: notizTeile.join(' · ')
+    monitoring: bogen.lagerung? 'Lagerung: '+bogen.lagerung : '',
+    notiz: notizTeile.join(' · ')
   };
   let opMsg = '';
   if(op.datum){
@@ -471,24 +810,29 @@ function druckenPDF(){ window.print(); }
 function versenden(){
   const b=collect();
   const L=[];
-  L.push('ANMELDEBOGEN WIRBELSÄULENCHIRURGIE');
+  L.push(standort==='traunstein' ? 'SPRECHSTUNDENANFORDERUNG WIRBELSÄULENCHIRURGIE' : 'ANMELDEBOGEN WIRBELSÄULENCHIRURGIE');
   L.push('');
   L.push('Patient: '+b.p_name+(b.p_gebdat?'  ('+b.p_gebdat+')':''));
   if(b.p_kasse) L.push('Kasse: '+b.p_kasse+(b.p_versnr?'  Vers-Nr. '+b.p_versnr:''));
   L.push('Dringlichkeit: '+(b.dringlichkeit||'-'));
   L.push('Diagnose: '+(b.diagnose||'-'));
   L.push('Operation: '+[b.op1_text,b.op2_text].filter(Boolean).join(' + '));
-  if(b.implantat) L.push('Implantat: '+b.implantat);
+  if(b.lagerung)  L.push('Lagerung: '+b.lagerung);
+  if(b.op_dauer)  L.push('OP-Dauer: ca. '+b.op_dauer+' min');
+  if(b.implantat) L.push('Implantat: '+b.implantat+(b.implantat_bestellen?' (muss bestellt werden → sep. Bogen)':''));
   if(b.op_datum)  L.push('OP-Datum: '+b.op_datum+(b.uhrzeit?' '+b.uhrzeit:''));
-  if(b.praeop_tage||b.postop_tage) L.push('Verweildauer: präop '+(b.praeop_tage||'0')+'d / postop '+(b.postop_tage||'0')+'d');
+  if(b.aufnahmemodus) L.push('Aufnahme: '+b.aufnahmemodus+(b.aufnahme_zeitpunkt?' · '+b.aufnahme_zeitpunkt:''));
+  if(b.verweildauer_tage) L.push('Verweildauer: ca. '+b.verweildauer_tage+' Tage');
+  if(b.reha_art) L.push('Reha: '+b.reha_art+(b.reha_ahb?' (AHB)':'')+(b.reha_wunschklinik?' · '+b.reha_wunschklinik:''));
   const dg=diagnostikText(); if(dg) L.push('Diagnostik: '+dg);
   const ab=absetzenText();   if(ab) L.push(ab);
+  if(b.allergien) L.push('Allergien: '+b.allergien);
   if(b.notiz) L.push('Bemerkung: '+b.notiz);
   L.push('');
-  L.push('Behandelnder Arzt: '+b.arzt);
+  L.push('Anordnender Arzt: '+b.arzt+(b.arzt_tel?'  ·  Tel. '+b.arzt_tel:''));
   L.push('');
   L.push('(Hinweis: Bitte den ausgedruckten/als PDF gespeicherten Bogen als Anhang beifügen.)');
-  const subj='Anmeldebogen '+(b.p_name||'')+(b.op_datum?' · '+b.op_datum:'');
+  const subj=(standort==='traunstein'?'Sprechstundenanforderung ':'Anmeldebogen ')+(b.p_name||'')+(b.op_datum?' · '+b.op_datum:'');
   location.href='mailto:?subject='+encodeURIComponent(subj)+'&body='+encodeURIComponent(L.join('\n'));
 }
 
@@ -497,16 +841,19 @@ function neuerBogen(){
   if(!confirm('Neuen leeren Bogen beginnen? Nicht gespeicherte Eingaben gehen verloren.')) return;
   document.getElementById('bogen').reset();
   currentId=null;
+  history.replaceState(null,'',location.pathname);
   document.querySelector('input[name="dring"][value="Elektiv"]').checked=true;
   setV('f_arzt','Dr. med. Mostafa Mosafer');
   setV('f_erstellt', new Date().toISOString().slice(0,10));
+  setStandort(standort);
   setState('');
 }
 
 /* ---------- Init ---------- */
 (async function(){
+  setStandort('traunstein');
   setV('f_erstellt', new Date().toISOString().slice(0,10));
-  await checkAuth();
+  if(await checkAuth()) await ladeAusURL();
 })();
 </script>
 </body>

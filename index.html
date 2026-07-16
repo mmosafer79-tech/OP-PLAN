@@ -197,6 +197,16 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .dp-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-faint);margin-bottom:3px}
 .dp-val{font-size:13px;color:var(--text)}
 .dp-val.empty{color:var(--text-faint);font-style:italic}
+
+/* Hinterlegter Anmeldebogen */
+.dp-doc{border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-top:4px;background:var(--bg)}
+.dp-doc a{display:flex;align-items:center;gap:9px;text-decoration:none;color:var(--text)}
+.dp-doc a:hover .dp-doc-name{text-decoration:underline}
+.dp-doc-ico{font-size:19px;line-height:1;flex-shrink:0}
+.dp-doc-name{display:block;font-size:12.5px;font-weight:600;color:var(--navy)}
+.dp-doc-meta{display:block;font-size:10.5px;color:var(--text-faint);margin-top:1px}
+.dp-doc.none{border-style:dashed}
+.dp-doc.none .dp-doc-name{color:var(--text-faint);font-weight:500}
 .dp-badge{display:inline-block;padding:3px 10px;border-radius:100px;font-size:11px;font-weight:600}
 .dp-actions{padding:1rem 1.2rem;border-top:1px solid var(--border);display:flex;gap:8px}
 .dp-btn{flex:1;padding:8px;font-size:12px;border-radius:var(--radius-sm);cursor:pointer;font-weight:500;text-align:center}
@@ -887,8 +897,47 @@ function showDetail(id){
     ${row('Anästhesist',op.anaest)} ${row('OP-Pflege',op.pflege)}
     ${op.monitoring?`<div style="border-top:1px solid var(--border);margin:10px 0"></div>${row('Monitoring / Besonderheiten',op.monitoring)}`:''}
     ${op.notiz?`${row('Notizen',op.notiz)}`:''}
+    <div style="border-top:1px solid var(--border);margin:10px 0"></div>
+    <div class="dp-row">
+      <div class="dp-lbl">Anmeldebogen</div>
+      <div id="dp-bogen"><div class="dp-doc"><div class="dp-doc-name">Prüfe …</div></div></div>
+    </div>
   `;
   document.getElementById('detailPanel').classList.add('open');
+  zeigeBogen(op);
+}
+
+/* Zugehörigen Anmeldebogen ermitteln.
+   Neue Einträge tragen bogen_id; Altbestand nutzt die ID-Konvention 'op_'+bogen.id. */
+function bogenIdOf(op){
+  if(op.bogen_id) return op.bogen_id;
+  if(typeof op.id==='string' && op.id.startsWith('op_')) return op.id.slice(3);
+  return null;
+}
+
+async function zeigeBogen(op){
+  const el = document.getElementById('dp-bogen');
+  if(!el) return;
+  const openId = detailId;                      // Panel könnte zwischenzeitlich wechseln
+  const bid = bogenIdOf(op);
+  const anlegen = `<div class="dp-doc none"><a href="anmeldebogen.html" title="Neuen Anmeldebogen anlegen">
+      <span class="dp-doc-ico">＋</span>
+      <span><span class="dp-doc-name">Kein Anmeldebogen hinterlegt</span>
+      <span class="dp-doc-meta">Anlegen und mit diesem Fall verknüpfen</span></span></a></div>`;
+
+  if(!bid || !sb){ el.innerHTML = anlegen; return; }
+
+  const { data, error } = await sb.from('anmeldeboegen')
+    .select('id,p_name,standort,erstellt,updated_at').eq('id', bid).maybeSingle();
+  if(detailId !== openId) return;               // Nutzer hat inzwischen einen anderen Fall geöffnet
+  if(error || !data){ el.innerHTML = anlegen; return; }
+
+  const ort = data.standort==='rosenheim' ? 'Praxis Rosenheim' : 'Traunstein';
+  const stand = (data.updated_at||'').slice(0,10) || data.erstellt || '';
+  el.innerHTML = `<div class="dp-doc"><a href="anmeldebogen.html?id=${encodeURIComponent(data.id)}" title="Anmeldebogen öffnen, bearbeiten oder drucken">
+      <span class="dp-doc-ico">📋</span>
+      <span><span class="dp-doc-name">Anmeldebogen ${ort}</span>
+      <span class="dp-doc-meta">${data.p_name||''}${stand? ' · Stand '+stand.split('-').reverse().join('.') : ''}</span></span></a></div>`;
 }
 
 function closeDetail(){ document.getElementById('detailPanel').classList.remove('open'); detailId=null; }
