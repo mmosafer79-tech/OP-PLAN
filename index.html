@@ -53,6 +53,10 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .hbtn:hover{background:rgba(255,255,255,0.18)}
 .hbtn.gold{background:var(--gold);color:var(--navy);border-color:var(--gold)}
 .hbtn.gold:hover{background:var(--gold-light)}
+.user-chip{font-size:11px;color:rgba(255,255,255,0.5);background:none;border:none;padding:4px 6px;border-radius:var(--radius-sm);cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:4px;white-space:nowrap;flex-shrink:0}
+.user-chip:hover{background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.85)}
+.user-chip::before{content:'🔑';font-size:10px}
+.user-chip:empty{display:none}
 
 /* TOOLBAR */
 .toolbar{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 2rem;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
@@ -290,7 +294,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
   </div>
   <div class="header-actions">
     <span id="syncDot" title="Verbinde…" style="width:10px;height:10px;border-radius:50%;background:#c9a84c;display:inline-block;flex-shrink:0;transition:background 0.4s"></span>
-    <span id="userEmail" style="font-size:11px;color:rgba(255,255,255,0.5)"></span>
+    <button id="userEmail" class="user-chip" onclick="openPw()" title="Eigenes Passwort ändern"></button>
     <button class="hbtn" onclick="exportCSV()">⬇ CSV Export</button>
     <button class="hbtn" onclick="exportAbwCSV()" title="Abwesenheiten als CSV">⬇ Urlaub CSV</button>
     <button class="hbtn" onclick="printPlan()">🖨 Drucken</button>
@@ -546,6 +550,37 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
   </div>
 </div>
 
+<!-- PASSWORT-MODAL -->
+<div class="overlay" id="pwOverlay">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-hdr">
+      <h2>Passwort ändern</h2>
+      <button class="modal-close" onclick="closePw()">✕</button>
+    </div>
+    <div class="modal-body" style="grid-template-columns:1fr">
+      <div id="pwMsg" style="display:none;border-radius:var(--radius-sm);padding:8px 12px;font-size:12px"></div>
+      <div class="f full">
+        <label>Neues Passwort</label>
+        <input type="password" id="p_neu" autocomplete="new-password">
+      </div>
+      <div class="f full">
+        <label>Neues Passwort wiederholen</label>
+        <input type="password" id="p_neu2" autocomplete="new-password">
+      </div>
+      <div class="f full" style="font-size:11px;color:var(--text-muted);line-height:1.5">
+        Mindestens 12 Zeichen, davon ein Großbuchstabe, ein Kleinbuchstabe,
+        eine Ziffer und ein Sonderzeichen.
+      </div>
+    </div>
+    <div class="modal-ftr">
+      <div style="display:flex;gap:8px;margin-left:auto">
+        <button class="btn-cancel" onclick="closePw()">Abbrechen</button>
+        <button class="btn-save" id="pwSaveBtn" onclick="savePw()">✓ Speichern</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 // ── SUPABASE ───────────────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://rcchxtczknnqqyavmxzv.supabase.co';
@@ -608,6 +643,58 @@ async function signOut() {
 sb.auth.onAuthStateChange((event, session) => {
   if (event === 'SIGNED_OUT') { ops = []; abwesenheiten = []; showLogin(); }
 });
+
+// ── PASSWORT ÄNDERN ────────────────────────────────────────────────────────
+// Jeder Nutzer ändert sein eigenes Passwort selbst. Kein SMTP nötig:
+// vergessene Passwörter setzt der Admin im Supabase-Dashboard neu.
+// Spiegelt die Passwort-Policy des Projekts (min. 12, Groß/Klein/Ziffer/Symbol),
+// damit der Nutzer eine verständliche Meldung sieht statt des API-Fehlers.
+function pwPolicyFehler(p) {
+  if (p.length < 12)          return 'Mindestens 12 Zeichen.';
+  if (!/[A-ZÄÖÜ]/.test(p))    return 'Mindestens ein Großbuchstabe fehlt.';
+  if (!/[a-zäöüß]/.test(p))   return 'Mindestens ein Kleinbuchstabe fehlt.';
+  if (!/[0-9]/.test(p))       return 'Mindestens eine Ziffer fehlt.';
+  if (!/[^A-Za-z0-9]/.test(p))return 'Mindestens ein Sonderzeichen fehlt.';
+  return null;
+}
+
+function openPw() {
+  document.getElementById('p_neu').value = '';
+  document.getElementById('p_neu2').value = '';
+  showPwMsg('', null);
+  document.getElementById('pwOverlay').classList.add('open');
+  document.getElementById('p_neu').focus();
+}
+
+function closePw() { document.getElementById('pwOverlay').classList.remove('open'); }
+
+function showPwMsg(text, typ) {
+  const el = document.getElementById('pwMsg');
+  if (!text) { el.style.display = 'none'; return; }
+  const ok = typ === 'ok';
+  el.textContent = text;
+  el.style.display = 'block';
+  el.style.background = ok ? 'var(--green-bg)' : 'var(--red-bg)';
+  el.style.color      = ok ? 'var(--green)'    : 'var(--red)';
+  el.style.border     = '1px solid ' + (ok ? 'var(--green-chip)' : 'var(--red-chip)');
+}
+
+async function savePw() {
+  const p1 = document.getElementById('p_neu').value;
+  const p2 = document.getElementById('p_neu2').value;
+  if (p1 !== p2) { showPwMsg('Die beiden Passwörter stimmen nicht überein.', 'err'); return; }
+  const fehler = pwPolicyFehler(p1);
+  if (fehler) { showPwMsg(fehler, 'err'); return; }
+
+  const btn = document.getElementById('pwSaveBtn');
+  btn.disabled = true; btn.textContent = 'Speichern…';
+  const { error } = await sb.auth.updateUser({ password: p1 });
+  btn.disabled = false; btn.textContent = '✓ Speichern';
+
+  if (error) { showPwMsg('Fehler: ' + error.message, 'err'); return; }
+  showPwMsg('Passwort geändert. Es gilt ab dem nächsten Anmelden.', 'ok');
+  setTimeout(closePw, 2000);
+}
 
 // ── LOKALER ZUSTAND ────────────────────────────────────────────────────────
 const STORE_KEY = 'op_plan_v2';
@@ -1323,10 +1410,13 @@ function printPlan(){
 
 // Keyboard
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeModal(); closeAbw(); closeDetail(); }
+  if (e.key === 'Escape') { closeModal(); closeAbw(); closePw(); closeDetail(); }
 });
 document.getElementById('loginPassword').addEventListener('keydown', e => {
   if (e.key === 'Enter') signIn();
+});
+document.getElementById('p_neu2').addEventListener('keydown', e => {
+  if (e.key === 'Enter') savePw();
 });
 document.getElementById('loginEmail').addEventListener('keydown', e => {
   if (e.key === 'Enter') document.getElementById('loginPassword').focus();
