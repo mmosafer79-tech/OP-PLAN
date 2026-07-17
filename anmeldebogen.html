@@ -36,12 +36,6 @@ body{font-family:'Segoe UI',system-ui,Arial,sans-serif;background:var(--bg);colo
 .toolbar button.gold:hover{background:#e8c97a}
 #saveState{font-size:11px;color:rgba(255,255,255,.6);min-width:90px}
 
-/* Standort-Umschalter */
-.seg{display:inline-flex;border:1px solid rgba(255,255,255,.25);border-radius:6px;overflow:hidden}
-.seg button{border:none;border-radius:0;background:transparent;padding:7px 12px;font-size:12px}
-.seg button.active{background:#fff;color:var(--navy);font-weight:700}
-.seg button:not(.active):hover{background:rgba(255,255,255,.16)}
-
 /* ---------- Blatt (A4) ---------- */
 .sheet-wrap{padding:22px 12px 60px;display:flex;justify-content:center}
 .sheet{background:var(--surface);width:210mm;max-width:100%;padding:14mm 14mm 12mm;box-shadow:0 3px 18px rgba(10,34,64,.12);border:1px solid var(--border)}
@@ -151,11 +145,7 @@ select.fill{border:none;border-bottom:1px solid var(--border-strong);background:
 
 <!-- ============ TOOLBAR ============ -->
 <div class="toolbar">
-  <span class="t-title">Anmeldebogen Wirbelsäulenchirurgie</span>
-  <span class="seg">
-    <button id="seg-traunstein" onclick="setStandort('traunstein')">Traunstein</button>
-    <button id="seg-rosenheim"  onclick="setStandort('rosenheim')">Praxis Rosenheim</button>
-  </span>
+  <span class="t-title">Anmeldebogen Wirbelsäulenchirurgie · Traunstein</span>
   <span class="spacer"></span>
   <span id="saveState"></span>
   <a href="index.html" title="Zurück zum OP-Plan">← OP-Plan</a>
@@ -378,16 +368,6 @@ select.fill{border:none;border-bottom:1px solid var(--border-strong);background:
         <div class="field"><label>Allergien</label><input class="fill" id="f_allergien" placeholder="…"></div>
       </div>
     </div>
-    <div class="sep"></div>
-    <div class="inline-cbx">
-      <span class="tag">Dialyse:</span>
-      <label class="cbx"><input type="checkbox" class="dia" value="Mo"><span class="mark"></span>Mo</label>
-      <label class="cbx"><input type="checkbox" class="dia" value="Di"><span class="mark"></span>Di</label>
-      <label class="cbx"><input type="checkbox" class="dia" value="Mi"><span class="mark"></span>Mi</label>
-      <label class="cbx"><input type="checkbox" class="dia" value="Do"><span class="mark"></span>Do</label>
-      <label class="cbx"><input type="checkbox" class="dia" value="Fr"><span class="mark"></span>Fr</label>
-      <label class="cbx"><input type="checkbox" class="dia" value="Sa"><span class="mark"></span>Sa</label>
-    </div>
     <div class="hint" style="margin-top:4px">Entscheidung ggf. gemeinsam mit Anästhesie bzw. Kardiologie.</div>
   </div>
 
@@ -499,8 +479,8 @@ select.fill{border:none;border-bottom:1px solid var(--border-strong);background:
 <script>
 /* ============================================================
    ANMELDEBOGEN · Wirbelsäulenchirurgie
-   Zusammenführung des eigenen Bogens mit der KSOB-Sprechstunden-
-   anforderung (Traunstein). Ein Formular, zwei Standorte.
+   Sprechstundenanforderung / Anmeldung zur operativen Behandlung
+   für das Klinikum Traunstein (KSOB).
 
    Speichert nach Supabase (Tabelle 'anmeldeboegen', auth-only)
    + erzeugt/aktualisiert den OP-Plan-Eintrag (op_eingriffe).
@@ -514,12 +494,6 @@ const STANDORTE = {
     sub:   'Sprechstundenanforderung / Anmeldung zur operativen Behandlung',
     clinic:'Klinikum Traunstein',
     clinicSub:'Kliniken Südostbayern AG'
-  },
-  rosenheim: {
-    title: 'Wirbelsäulenchirurgie',
-    sub:   'Anmeldebogen zur operativen Behandlung',
-    clinic:'Praxis Mosafer Spine',
-    clinicSub:'Wirbelsäulen- & Skoliosechirurgie'
   }
 };
 let standort = 'traunstein';
@@ -534,8 +508,6 @@ function setStandort(s){
   document.querySelectorAll('[data-only]').forEach(el=>{
     el.classList.toggle('hidden', el.dataset.only !== standort);
   });
-  document.getElementById('seg-traunstein').classList.toggle('active', standort==='traunstein');
-  document.getElementById('seg-rosenheim').classList.toggle('active',  standort==='rosenheim');
 }
 
 /* ---- Supabase (gleiche Instanz wie OP-Plan) ---- */
@@ -619,10 +591,6 @@ function absetzenText(){
   return t.length? 'Gerinnung/Medikamente: '+t.join(', ') : '';
 }
 
-function dialyseTage(){
-  return [...document.querySelectorAll('.dia:checked')].map(el=>el.value).join(', ');
-}
-
 /* ---------- Formular <-> Objekt ---------- */
 function collect(){
   return {
@@ -660,7 +628,7 @@ function collect(){
     marcumar_modus:radio('marc'), marcumar_ab:g('m_marc_ab'),
     ab_metformin:gc('m_metformin'), ab_glp:gc('m_glp'),
     ab_schrittmacher:gc('m_schrittmacher'), ab_sonstiges:g('m_sonstiges'),
-    allergien:g('f_allergien'), dialyse_tage:dialyseTage(), praeop_abfuehren:gc('f_abfuehren'),
+    allergien:g('f_allergien'), praeop_abfuehren:gc('f_abfuehren'),
     // Kinder / Konsile / Korsett
     kind_narkose:gc('k_narkose'), kind_sedierung:gc('k_sedierung'),
     konsil_kardio:gc('k_kardio'), konsil_kardio_text:g('k_kardio_text'),
@@ -719,8 +687,6 @@ function apply(b){
   setC('m_metformin',b.ab_metformin); setC('m_glp',b.ab_glp);
   setC('m_schrittmacher',b.ab_schrittmacher); setV('m_sonstiges',b.ab_sonstiges);
   setV('f_allergien',b.allergien); setC('f_abfuehren',b.praeop_abfuehren);
-  const tage=(b.dialyse_tage||'').split(',').map(s=>s.trim());
-  document.querySelectorAll('.dia').forEach(el=>{ el.checked = tage.includes(el.value); });
   setC('k_narkose',b.kind_narkose); setC('k_sedierung',b.kind_sedierung);
   setC('k_kardio',b.konsil_kardio); setV('k_kardio_text',b.konsil_kardio_text);
   setC('k_neuro',b.konsil_neuro); setV('k_neuro_text',b.konsil_neuro_text);
@@ -770,7 +736,6 @@ async function speichern(){
   // 2) OP-Plan-Eintrag -> op_eingriffe (via bogen_id fest verknüpft)
   const notizTeile = [absetzenText(), diagnostikText()? 'Diagnostik: '+diagnostikText():'',
                       bogen.allergien? 'Allergien: '+bogen.allergien:'',
-                      bogen.dialyse_tage? 'Dialyse: '+bogen.dialyse_tage:'',
                       bogen.icu_postop? 'ICU postop':'',
                       bogen.verweildauer_tage? 'Verweildauer ca. '+bogen.verweildauer_tage+'d':'',
                       bogen.notiz].filter(Boolean);
