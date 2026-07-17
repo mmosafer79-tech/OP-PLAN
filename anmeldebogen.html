@@ -779,11 +779,13 @@ async function speichern(){
 /* ---------- Drucken / PDF ---------- */
 function druckenPDF(){ window.print(); }
 
-/* ---------- Versenden: erst speichern + OP-Plan-Eintrag, dann E-Mail-Entwurf ---------- */
+/* ---------- Versenden: Mail-Entwurf öffnen + speichern + OP-Plan-Eintrag ----------
+   WICHTIG: Das mailto muss SOFORT beim Klick raus. Nach den await-Aufrufen in
+   persist() ist die User-Activation des Klicks abgelaufen, und der Browser
+   blockiert die externe mailto-Navigation still (dann „passiert nichts").
+   Deshalb: erst Mail öffnen, dann im Hintergrund speichern + OP-Plan. */
 async function versenden(){
-  const r = await persist();
-  if(!r.ok) return;                 // nur versenden, wenn Bogen gespeichert + OP-Plan übernommen
-  const b = r.bogen;
+  const b = collect();
   const L=[];
   L.push(standort==='traunstein' ? 'SPRECHSTUNDENANFORDERUNG WIRBELSÄULENCHIRURGIE' : 'ANMELDEBOGEN WIRBELSÄULENCHIRURGIE');
   L.push('');
@@ -808,8 +810,13 @@ async function versenden(){
   L.push('');
   L.push('(Hinweis: Bitte den ausgedruckten/als PDF gespeicherten Bogen als Anhang beifügen.)');
   const subj=(standort==='traunstein'?'Sprechstundenanforderung ':'Anmeldebogen ')+(b.p_name||'')+(b.op_datum?' · '+b.op_datum:'');
-  setState('Gespeichert ✓ · Mail geöffnet');
+
+  // 1) Mail-Entwurf sofort öffnen (solange der Klick „frisch" ist)
   location.href='mailto:?subject='+encodeURIComponent(subj)+'&body='+encodeURIComponent(L.join('\n'));
+
+  // 2) Danach Bogen speichern + OP-Plan-Eintrag anlegen/aktualisieren
+  const r = await persist();
+  setState(r.ok ? 'Mail geöffnet · gespeichert ✓' : 'Mail geöffnet · nicht gespeichert');
 }
 
 /* ---------- Neuer Bogen ---------- */
