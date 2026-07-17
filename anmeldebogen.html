@@ -808,7 +808,7 @@ async function versenden(){
   L.push('');
   L.push('Anordnender Arzt: '+b.arzt+(b.arzt_tel?'  ·  Tel. '+b.arzt_tel:''));
   L.push('');
-  L.push('(Hinweis: Bitte den ausgedruckten/als PDF gespeicherten Bogen als Anhang beifügen.)');
+  L.push('(Hinweis: Bitte das eben als PDF gesicherte Bogen-Dokument an diese Mail anhängen.)');
   const subj=(standort==='traunstein'?'Sprechstundenanforderung ':'Anmeldebogen ')+(b.p_name||'')+(b.op_datum?' · '+b.op_datum:'');
 
   // 1) Mail-Entwurf sofort öffnen (solange der Klick „frisch" ist).
@@ -816,18 +816,26 @@ async function versenden(){
   //    Chrome location.href='mailto:' still, wenn der mailto-Handler ein
   //    Web-Mailer ist (z. B. Strato-Webmail) — dann via window.open an den
   //    Browser durchreichen; ein evtl. leeres Popup danach wieder schließen.
+  //    Mail muss VOR window.print() raus: das Öffnen braucht die frische
+  //    Klick-Activation, die ein (blockierender) Druckdialog aufbrauchen würde.
   const mailtoUrl='mailto:?subject='+encodeURIComponent(subj)+'&body='+encodeURIComponent(L.join('\n'));
+  let mailWin=null;
   if(window.matchMedia('(display-mode: standalone)').matches){
-    const w=window.open(mailtoUrl,'_blank');
-    if(w) setTimeout(()=>{ try{ w.close(); }catch(e){} }, 2500);
-    else  location.href=mailtoUrl;   // Popup blockiert -> letzter Versuch
+    mailWin=window.open(mailtoUrl,'_blank');
+    if(!mailWin) location.href=mailtoUrl;   // Popup blockiert -> letzter Versuch
   } else {
     location.href=mailtoUrl;
   }
 
-  // 2) Danach Bogen speichern + OP-Plan-Eintrag anlegen/aktualisieren
+  // 2) PDF-/Druck-Dialog öffnen. window.print() braucht keine Activation und
+  //    blockiert modal im Vordergrund -> der Nutzer sichert zuerst das PDF,
+  //    die Mail wartet dahinter. Danach das evtl. leere mailto-Popup schließen.
+  window.print();
+  if(mailWin){ try{ mailWin.close(); }catch(e){} }
+
+  // 3) Bogen speichern + OP-Plan-Eintrag anlegen/aktualisieren
   const r = await persist();
-  setState(r.ok ? 'Mail geöffnet · gespeichert ✓' : 'Mail geöffnet · nicht gespeichert');
+  setState(r.ok ? 'PDF + Mail geöffnet · gespeichert ✓' : 'PDF + Mail geöffnet · nicht gespeichert');
 }
 
 /* ---------- Neuer Bogen ---------- */
