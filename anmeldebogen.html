@@ -789,8 +789,8 @@ async function versenden(){
   const L=[];
   L.push(standort==='traunstein' ? 'SPRECHSTUNDENANFORDERUNG WIRBELSÄULENCHIRURGIE' : 'ANMELDEBOGEN WIRBELSÄULENCHIRURGIE');
   L.push('');
-  L.push('Patient: '+b.p_name+(b.p_gebdat?'  ('+b.p_gebdat+')':''));
-  if(b.p_kasse) L.push('Kasse: '+b.p_kasse+(b.p_versnr?'  Vers-Nr. '+b.p_versnr:''));
+  L.push('Patientendaten (Name, Geb.-Datum, Kasse, Vers.-Nr.) siehe PDF im Anhang.');
+  L.push('');
   L.push('Dringlichkeit: '+(b.dringlichkeit||'-'));
   L.push('Diagnose: '+(b.diagnose||'-'));
   L.push('Operation: '+[b.op1_text,b.op2_text].filter(Boolean).join(' + '));
@@ -809,7 +809,7 @@ async function versenden(){
   L.push('Anordnender Arzt: '+b.arzt+(b.arzt_tel?'  ·  Tel. '+b.arzt_tel:''));
   L.push('');
   L.push('(Hinweis: Bitte das eben als PDF gesicherte Bogen-Dokument an diese Mail anhängen.)');
-  const subj=(standort==='traunstein'?'Sprechstundenanforderung ':'Anmeldebogen ')+(b.p_name||'')+(b.op_datum?' · '+b.op_datum:'');
+  const subj=(standort==='traunstein'?'Sprechstundenanforderung Wirbelsäulenchirurgie':'Anmeldebogen Wirbelsäulenchirurgie')+(b.op_datum?' · OP '+b.op_datum:'');
 
   // 1) Mail-Entwurf sofort öffnen (solange der Klick „frisch" ist).
   //    In der installierten App (PWA, display-mode standalone) verschluckt
