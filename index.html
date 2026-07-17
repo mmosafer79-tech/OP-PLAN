@@ -29,6 +29,12 @@
   --gray: #5f5e5a; --gray-bg: #f1efe8; --gray-chip: #d3d1c7;
   --red: #a32d2d; --red-bg: #fcebeb; --red-chip: #f7c1c1;
   --amber: #854f0b; --amber-bg: #faeeda; --amber-chip: #fac775;
+  /* Abwesenheiten: bewusst außerhalb der Status-Palette, damit ein Urlaubsband
+     nie mit "geplant/bestätigt/abgesagt" verwechselt wird. */
+  --p-mosafer: #6b46c1;  --p-mosafer-bg: #e4dcf7;
+  --p-wittmann: #0e7490; --p-wittmann-bg: #d6eef3;
+  --p-moravec: #a21caf;  --p-moravec-bg: #f7dcf3;
+  --p-bas: #4d7c0f;      --p-bas-bg: #e6f0d5;
   --radius: 10px;
   --radius-sm: 6px;
   --shadow: 0 2px 12px rgba(10,34,64,0.08);
@@ -60,6 +66,8 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .filter-select{padding:5px 10px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);cursor:pointer}
 .search-input{padding:5px 10px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);width:180px}
 .search-input:focus{outline:none;border-color:var(--navy)}
+.abw-toggle{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text-muted);cursor:pointer;user-select:none;white-space:nowrap}
+.abw-toggle input{cursor:pointer;accent-color:var(--navy)}
 .spacer{flex:1}
 
 /* SUMMARY CARDS */
@@ -101,6 +109,24 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .s-abgesagt{background:var(--red-chip);color:var(--red)}
 .s-dringlich{background:var(--amber-chip);color:var(--amber)}
 .more{font-size:11px;color:var(--text-faint);padding:1px 3px}
+
+/* ABWESENHEITS-BÄNDER (Monat) — schmal, über den OP-Chips, damit sie das
+   3-Chip-Budget der Zelle nicht auffressen. */
+.abw-band{display:block;width:calc(100% + 12px);margin:0 -6px 2px;padding:1px 6px;border:none;font-size:10px;font-weight:700;letter-spacing:0.02em;line-height:14px;height:14px;text-align:left;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-radius:0}
+.abw-band:hover{filter:brightness(0.92)}
+.abw-band.start{margin-left:0;width:calc(100% + 6px);border-radius:3px 0 0 3px}
+.abw-band.end{margin-right:0;width:calc(100% + 6px);border-radius:0 3px 3px 0}
+.abw-band.start.end{margin:0 0 2px;width:100%;border-radius:3px}
+.abw-band.art-fortbildung{background-image:repeating-linear-gradient(135deg,transparent,transparent 4px,rgba(255,255,255,0.5) 4px,rgba(255,255,255,0.5) 8px)}
+.abw-band.art-krank{background-image:repeating-linear-gradient(45deg,transparent,transparent 3px,rgba(255,255,255,0.55) 3px,rgba(255,255,255,0.55) 6px)}
+
+/* ABWESENHEITS-BÄNDER (Woche) — unter dem Tages-Header, nicht im Stundenraster:
+   Abwesenheit hat keine Uhrzeit. */
+.week-abw-row{display:grid;grid-template-columns:60px repeat(5,1fr);background:var(--bg);border-bottom:1px solid var(--border)}
+.week-abw-lbl{font-size:9px;font-weight:700;color:var(--text-faint);text-transform:uppercase;letter-spacing:0.06em;display:flex;align-items:center;justify-content:center;border-right:1px solid var(--border);text-align:center;padding:2px}
+.week-abw-cell{border-right:1px solid var(--border);padding:3px 4px;min-height:22px;display:flex;flex-direction:column;gap:2px}
+.week-abw-cell:last-child{border-right:none}
+.week-abw-row.empty{display:none}
 
 /* WEEK VIEW */
 .week-grid{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
@@ -266,8 +292,10 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
     <span id="syncDot" title="Verbinde…" style="width:10px;height:10px;border-radius:50%;background:#c9a84c;display:inline-block;flex-shrink:0;transition:background 0.4s"></span>
     <span id="userEmail" style="font-size:11px;color:rgba(255,255,255,0.5)"></span>
     <button class="hbtn" onclick="exportCSV()">⬇ CSV Export</button>
+    <button class="hbtn" onclick="exportAbwCSV()" title="Abwesenheiten als CSV">⬇ Urlaub CSV</button>
     <button class="hbtn" onclick="printPlan()">🖨 Drucken</button>
     <a class="hbtn" href="anmeldebogen.html" title="Anmeldebogen ausfüllen" style="text-decoration:none">📋 Anmeldebogen</a>
+    <button class="hbtn" onclick="openAbw()">＋ Abwesenheit</button>
     <button class="hbtn gold" onclick="openNew()">＋ OP eintragen</button>
     <button class="hbtn" onclick="signOut()" title="Abmelden" style="border-color:rgba(255,255,255,0.15)">↩ Abmelden</button>
   </div>
@@ -301,6 +329,9 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
     <option>Saal 3</option>
     <option>Tagesklinik</option>
   </select>
+  <label class="abw-toggle" title="Urlaub / Fortbildung / Krank im Kalender anzeigen">
+    <input type="checkbox" id="toggleAbw" checked onchange="toggleAbwesenheiten()"> Abwesenheiten
+  </label>
 </div>
 
 <!-- STATS -->
@@ -316,6 +347,9 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
   <div class="li"><div class="ld" style="background:var(--gray-chip)"></div>Durchgeführt</div>
   <div class="li"><div class="ld" style="background:var(--red-chip)"></div>Abgesagt</div>
   <div class="li"><div class="ld" style="background:var(--amber-chip)"></div>Dringlich / Notfall</div>
+  <div class="li" style="border-left:1px solid var(--border);padding-left:16px;margin-left:4px;color:var(--text-faint)">Abwesend:</div>
+  <div class="li" id="legendAbw"></div>
+  <div class="li" style="color:var(--text-faint)">Muster: einfarbig = Urlaub · schraffiert = Fortbildung · fein schraffiert = Krank</div>
 </div>
 
 <!-- DETAIL PANEL -->
@@ -469,6 +503,49 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
   </div>
 </div>
 
+<!-- ABWESENHEITS-MODAL -->
+<div class="overlay" id="abwOverlay">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-hdr">
+      <h2 id="abwModalTitle">Abwesenheit eintragen</h2>
+      <button class="modal-close" onclick="closeAbw()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="f full">
+        <label>Person</label>
+        <select id="a_person"></select>
+      </div>
+      <div class="f">
+        <label>Von</label>
+        <input type="date" id="a_von">
+      </div>
+      <div class="f">
+        <label>Bis (einschließlich)</label>
+        <input type="date" id="a_bis">
+      </div>
+      <div class="f full">
+        <label>Art</label>
+        <select id="a_art">
+          <option value="urlaub">Urlaub</option>
+          <option value="fortbildung">Fortbildung / Kongress</option>
+          <option value="krank">Krank</option>
+        </select>
+      </div>
+      <div class="f full">
+        <label>Notiz</label>
+        <textarea id="a_notiz" placeholder="z. B. Vertretung, Kongressort…"></textarea>
+      </div>
+    </div>
+    <div class="modal-ftr">
+      <button class="btn-del" id="btnAbwDelete" style="display:none" onclick="deleteAbw()">🗑 Löschen</button>
+      <div style="display:flex;gap:8px;margin-left:auto">
+        <button class="btn-cancel" onclick="closeAbw()">Abbrechen</button>
+        <button class="btn-save" onclick="saveAbw()">✓ Speichern</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 // ── SUPABASE ───────────────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://rcchxtczknnqqyavmxzv.supabase.co';
@@ -523,12 +600,13 @@ async function signOut() {
   if (!confirm('Wirklich abmelden?')) return;
   await sb.auth.signOut();
   ops = [];
+  abwesenheiten = [];
   document.getElementById('userEmail').textContent = '';
   showLogin();
 }
 
 sb.auth.onAuthStateChange((event, session) => {
-  if (event === 'SIGNED_OUT') { ops = []; showLogin(); }
+  if (event === 'SIGNED_OUT') { ops = []; abwesenheiten = []; showLogin(); }
 });
 
 // ── LOKALER ZUSTAND ────────────────────────────────────────────────────────
@@ -541,6 +619,20 @@ let detailId = null;
 
 const MONTHS = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
 const DAYS_SHORT = ['Mo','Di','Mi','Do','Fr','Sa','So'];
+
+// ── ABWESENHEITEN ──────────────────────────────────────────────────────────
+// Personen zentral: Namen, Kürzel und Farben nur hier ändern.
+const PERSONEN = {
+  mosafer:  { name:'Dr. Mosafer',  kuerzel:'MS', fg:'var(--p-mosafer)',  bg:'var(--p-mosafer-bg)'  },
+  wittmann: { name:'Dr. Wittmann', kuerzel:'WI', fg:'var(--p-wittmann)', bg:'var(--p-wittmann-bg)' },
+  moravec:  { name:'Dr. Moravec',  kuerzel:'MO', fg:'var(--p-moravec)',  bg:'var(--p-moravec-bg)'  },
+  bas:      { name:'Dr. Bas',      kuerzel:'BA', fg:'var(--p-bas)',      bg:'var(--p-bas-bg)'      }
+};
+const ARTEN = { urlaub:'Urlaub', fortbildung:'Fortbildung', krank:'Krank' };
+
+const ABW_KEY = 'op_plan_abw_v1';
+let abwesenheiten = JSON.parse(localStorage.getItem(ABW_KEY) || '[]');
+let editingAbwId = null;
 
 // ── SYNC STATUS ────────────────────────────────────────────────────────────
 function setSyncStatus(s) {
@@ -558,6 +650,7 @@ function setSyncStatus(s) {
 
 // ── PERSISTENZ ─────────────────────────────────────────────────────────────
 function saveLocal() { localStorage.setItem(STORE_KEY, JSON.stringify(ops)); }
+function saveAbwLocal() { localStorage.setItem(ABW_KEY, JSON.stringify(abwesenheiten)); }
 
 async function upsertRemote(op) {
   setSyncStatus('connecting');
@@ -583,14 +676,39 @@ async function loadFromSupabase() {
   render();
 }
 
+async function upsertAbwRemote(a) {
+  setSyncStatus('connecting');
+  const { error } = await sb.from('abwesenheiten').upsert(a);
+  setSyncStatus(error ? 'error' : 'ok');
+  if (error) console.error('Supabase upsert abw:', error.message);
+}
+
+async function deleteAbwRemote(id) {
+  setSyncStatus('connecting');
+  const { error } = await sb.from('abwesenheiten').delete().eq('id', id);
+  setSyncStatus(error ? 'error' : 'ok');
+  if (error) console.error('Supabase delete abw:', error.message);
+}
+
+async function loadAbwFromSupabase() {
+  const { data, error } = await sb.from('abwesenheiten').select('*').order('von');
+  if (error) { setSyncStatus('error'); console.error('Supabase load abw:', error.message); return; }
+  abwesenheiten = data || [];
+  saveAbwLocal();
+  render();
+}
+
 // ── INIT ───────────────────────────────────────────────────────────────────
 async function init() {
   const n = new Date();
   curYear = n.getFullYear();
   curMonth = n.getMonth();
   curWeekStart = getWeekStart(n);
+  fillPersonSelect();
+  renderLegendAbw();
   render();               // sofort aus localStorage (offline-fähig)
   await loadFromSupabase(); // dann aus Supabase aktualisieren
+  await loadAbwFromSupabase();
 }
 
 function getWeekStart(d){
@@ -696,7 +814,7 @@ function renderMonth(){
       const kw=getISOWeek(dt);
       cellsHTML+=`<div class="kw-cell" title="Kalenderwoche ${kw}">KW ${kw}</div>`;
     }
-    let chipsHTML='';
+    let chipsHTML=abwAmTag(dateStr).map(a=>abwBandHTML(a,dateStr,false)).join('');
     dayOps.slice(0,3).forEach(op=>{
       const prio=op.prioritaet==='notfall'?'🔴 ':op.prioritaet==='dringlich'?'🟠 ':'';
       const timeStr=op.uhrzeit?`<span class="chip-time">${op.uhrzeit}</span> `:'';
@@ -735,6 +853,17 @@ function renderWeek(){
     headersHTML+=`<div class="wh${isTodayCol?' today-col':''}"><div class="wh-day">${DAYS_SHORT[d]}</div><div class="wh-date">${fmt(dt)}</div></div>`;
   }
 
+  // Abwesenheits-Zeile: gehört über das Stundenraster, nicht hinein — sie hat keine Uhrzeit.
+  let abwRowHTML='<div class="week-abw-lbl">Abw.</div>';
+  let abwLeer=true;
+  for(let d=0;d<5;d++){
+    const dt=new Date(ws.getTime()+d*86400000);
+    const ds=`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+    const list=abwAmTag(ds);
+    if(list.length) abwLeer=false;
+    abwRowHTML+=`<div class="week-abw-cell">${list.map(a=>abwBandHTML(a,ds,false)).join('')}</div>`;
+  }
+
   let timeColHTML=HOURS.map(h=>`<div class="time-slot">${h}:00</div>`).join('');
   let dayCols='';
   for(let d=0;d<5;d++){
@@ -767,6 +896,7 @@ function renderWeek(){
   document.getElementById('calWrap').innerHTML=`
     <div class="week-grid">
       <div class="week-header-row">${headersHTML}</div>
+      <div class="week-abw-row${abwLeer?' empty':''}">${abwRowHTML}</div>
       <div class="week-body">
         <div class="time-col">${timeColHTML}</div>
         ${dayCols}
@@ -1060,6 +1190,101 @@ function lookupICD(){
   else{document.getElementById('f_icd_text').value='(Code nicht in lokaler Liste – bitte manuell eingeben)';}
 }
 
+// ── ABWESENHEITEN: RENDERING ───────────────────────────────────────────────
+function abwSichtbar(){ return document.getElementById('toggleAbw')?.checked !== false; }
+function toggleAbwesenheiten(){ render(); }
+
+// Alle Abwesenheiten, die den Tag überdecken (von <= Tag <= bis).
+// String-Vergleich reicht: ISO-Datum sortiert lexikografisch korrekt.
+function abwAmTag(dateStr){
+  if(!abwSichtbar()) return [];
+  const reihenfolge = Object.keys(PERSONEN);  // gleiche Reihenfolge wie die Legende
+  return abwesenheiten
+    .filter(a => a.von <= dateStr && dateStr <= a.bis)
+    .sort((a,b) => reihenfolge.indexOf(a.person) - reihenfolge.indexOf(b.person));
+}
+
+function abwBandHTML(a, dateStr, kompakt){
+  const p = PERSONEN[a.person] || { kuerzel:'??', name:a.person, fg:'var(--text)', bg:'var(--bg)' };
+  const artLbl = ARTEN[a.art] || a.art || '';
+  const cls = ['abw-band', 'art-'+(a.art||'urlaub')];
+  if(dateStr === a.von) cls.push('start');
+  if(dateStr === a.bis) cls.push('end');
+  const text = kompakt ? p.kuerzel : `${p.kuerzel} · ${artLbl}`;
+  const titel = `${p.name} — ${artLbl}: ${fmtDE(a.von)} – ${fmtDE(a.bis)}${a.notiz ? ' · '+a.notiz : ''}`;
+  return `<button class="${cls.join(' ')}" style="background:${p.bg};color:${p.fg}"
+    onclick="event.stopPropagation();openAbw('${a.id}')" title="${esc(titel)}">${text}</button>`;
+}
+
+function fmtDE(iso){ if(!iso) return ''; const [y,m,d] = iso.split('-'); return `${d}.${m}.${y}`; }
+function esc(s){ return String(s||'').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+
+function renderLegendAbw(){
+  const el = document.getElementById('legendAbw');
+  if(!el) return;
+  el.innerHTML = Object.values(PERSONEN)
+    .map(p => `<span style="display:inline-flex;align-items:center;gap:5px;margin-right:12px">
+      <span class="ld" style="background:${p.bg};border:1px solid ${p.fg}"></span>${p.name}</span>`)
+    .join('');
+}
+
+function fillPersonSelect(){
+  const el = document.getElementById('a_person');
+  if(!el) return;
+  el.innerHTML = Object.entries(PERSONEN)
+    .map(([k,p]) => `<option value="${k}">${p.name}</option>`).join('');
+}
+
+// ── ABWESENHEITEN: MODAL ───────────────────────────────────────────────────
+function openAbw(id){
+  editingAbwId = id || null;
+  const a = id ? abwesenheiten.find(x => x.id === id) : null;
+  const s = (el,v) => { const e = document.getElementById(el); if(e) e.value = v; };
+  document.getElementById('abwModalTitle').textContent = a ? 'Abwesenheit bearbeiten' : 'Abwesenheit eintragen';
+  document.getElementById('btnAbwDelete').style.display = a ? 'block' : 'none';
+  s('a_person', a?.person || 'mosafer');
+  s('a_von',    a?.von    || '');
+  s('a_bis',    a?.bis    || '');
+  s('a_art',    a?.art    || 'urlaub');
+  s('a_notiz',  a?.notiz  || '');
+  document.getElementById('abwOverlay').classList.add('open');
+  document.getElementById('a_von').focus();
+}
+
+function closeAbw(){
+  document.getElementById('abwOverlay').classList.remove('open');
+  editingAbwId = null;
+}
+
+function saveAbw(){
+  const g = id => document.getElementById(id)?.value || '';
+  const a = {
+    id: editingAbwId || 'abw_' + Date.now().toString(),
+    person: g('a_person'), von: g('a_von'), bis: g('a_bis'),
+    art: g('a_art'), notiz: g('a_notiz')
+  };
+  if(!a.von){ alert('Bitte Von-Datum angeben.'); return; }
+  if(!a.bis) a.bis = a.von;                       // Ein-Tages-Abwesenheit
+  if(a.bis < a.von){ alert('Das Bis-Datum liegt vor dem Von-Datum.'); return; }
+
+  const i = abwesenheiten.findIndex(x => x.id === a.id);
+  if(i > -1) abwesenheiten[i] = a; else abwesenheiten.push(a);
+  saveAbwLocal();
+  closeAbw();
+  render();
+  upsertAbwRemote(a);
+}
+
+function deleteAbw(){
+  if(!editingAbwId || !confirm('Abwesenheit wirklich löschen?')) return;
+  const id = editingAbwId;
+  abwesenheiten = abwesenheiten.filter(x => x.id !== id);
+  saveAbwLocal();
+  closeAbw();
+  render();
+  deleteAbwRemote(id);
+}
+
 // CSV EXPORT
 function exportCSV(){
   if(ops.length===0){alert('Keine OP-Einträge vorhanden.');return;}
@@ -1072,6 +1297,25 @@ function exportCSV(){
   a.click();
 }
 
+// Bewusst getrennt vom OP-Export: Personalzeiten und Patientendaten
+// gehören nicht in dieselbe Tabelle.
+function exportAbwCSV(){
+  if(abwesenheiten.length===0){alert('Keine Abwesenheiten eingetragen.');return;}
+  const h=['Person','Art','Von','Bis','Tage','Notiz'];
+  const rows=abwesenheiten
+    .slice().sort((a,b)=>(a.von||'').localeCompare(b.von||''))
+    .map(a=>{
+      const tage=Math.round((new Date(a.bis)-new Date(a.von))/86400000)+1;
+      return [PERSONEN[a.person]?.name||a.person, ARTEN[a.art]||a.art, fmtDE(a.von), fmtDE(a.bis), String(tage), a.notiz]
+        .map(v=>`"${(v||'').replace(/"/g,'""')}"`).join(',');
+    });
+  const csv='\uFEFF'+[h.join(','),...rows].join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+  a.download=`Abwesenheiten_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
+
 function printPlan(){
   closeDetail();
   window.print();
@@ -1079,7 +1323,7 @@ function printPlan(){
 
 // Keyboard
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeModal(); closeDetail(); }
+  if (e.key === 'Escape') { closeModal(); closeAbw(); closeDetail(); }
 });
 document.getElementById('loginPassword').addEventListener('keydown', e => {
   if (e.key === 'Enter') signIn();
