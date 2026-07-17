@@ -811,8 +811,19 @@ async function versenden(){
   L.push('(Hinweis: Bitte den ausgedruckten/als PDF gespeicherten Bogen als Anhang beifügen.)');
   const subj=(standort==='traunstein'?'Sprechstundenanforderung ':'Anmeldebogen ')+(b.p_name||'')+(b.op_datum?' · '+b.op_datum:'');
 
-  // 1) Mail-Entwurf sofort öffnen (solange der Klick „frisch" ist)
-  location.href='mailto:?subject='+encodeURIComponent(subj)+'&body='+encodeURIComponent(L.join('\n'));
+  // 1) Mail-Entwurf sofort öffnen (solange der Klick „frisch" ist).
+  //    In der installierten App (PWA, display-mode standalone) verschluckt
+  //    Chrome location.href='mailto:' still, wenn der mailto-Handler ein
+  //    Web-Mailer ist (z. B. Strato-Webmail) — dann via window.open an den
+  //    Browser durchreichen; ein evtl. leeres Popup danach wieder schließen.
+  const mailtoUrl='mailto:?subject='+encodeURIComponent(subj)+'&body='+encodeURIComponent(L.join('\n'));
+  if(window.matchMedia('(display-mode: standalone)').matches){
+    const w=window.open(mailtoUrl,'_blank');
+    if(w) setTimeout(()=>{ try{ w.close(); }catch(e){} }, 2500);
+    else  location.href=mailtoUrl;   // Popup blockiert -> letzter Versuch
+  } else {
+    location.href=mailtoUrl;
+  }
 
   // 2) Danach Bogen speichern + OP-Plan-Eintrag anlegen/aktualisieren
   const r = await persist();
