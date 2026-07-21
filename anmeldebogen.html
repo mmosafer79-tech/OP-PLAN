@@ -543,6 +543,14 @@ const setV = (id,v)=>{ const el=document.getElementById(id); if(el) el.value = v
 const setC = (id,v)=>{ const el=document.getElementById(id); if(el) el.checked = !!v; };
 const setR = (name,v)=>{ if(!v) return; const el=document.querySelector(`input[name="${name}"][value="${v}"]`); if(el) el.checked=true; };
 
+/* Empfänger für „Speichern & Versenden".
+   Funktionsadresse des Zentralen Belegungsmanagements Traunstein — belegt aus
+   den KSOB-Verteilern (OP-Kommission, Saalkontingente Q3/2026), noch nicht vom
+   ZBM selbst bestätigt. Ansprechpartnerin persönlich: Isabell Baumgartner,
+   Abteilungsleitung Belegungs-/Kapazitätsmanagement, Tel. 0861-705 2210,
+   isabell.baumgartner@kliniken-sob.de. Empfänger nur hier ändern. */
+const ZBM_MAIL = 'zentrales.belegungsmanagement.ts@kliniken-sob.de';
+
 /* Patient-Feld für OP-Plan: gleiche Konvention wie bestehende Einträge
    -> "Nachname, Vorname (GebDat)". op_eingriffe ist auth-geschützt (RLS).
    Wer stattdessen nur ein Kürzel im Kalender will, setzt PSEUDONYM = true. */
@@ -818,7 +826,7 @@ async function versenden(){
   //    Browser durchreichen; ein evtl. leeres Popup danach wieder schließen.
   //    Mail muss VOR window.print() raus: das Öffnen braucht die frische
   //    Klick-Activation, die ein (blockierender) Druckdialog aufbrauchen würde.
-  const mailtoUrl='mailto:?subject='+encodeURIComponent(subj)+'&body='+encodeURIComponent(L.join('\n'));
+  const mailtoUrl='mailto:'+ZBM_MAIL+'?subject='+encodeURIComponent(subj)+'&body='+encodeURIComponent(L.join('\n'));
   let mailWin=null;
   if(window.matchMedia('(display-mode: standalone)').matches){
     mailWin=window.open(mailtoUrl,'_blank');
