@@ -112,7 +112,7 @@ select.fill{border:none;border-bottom:1px solid var(--border-strong);background:
 @media print{
   @page{size:A4;margin:10mm}
   body{background:#fff;font-size:11px}
-  .toolbar,#authGate{display:none !important}
+  .toolbar,#authGate,#versandOverlay{display:none !important}
   .sheet-wrap{padding:0;display:block}
   .sheet{box-shadow:none;border:none;width:auto;padding:0}
   .field .fill,select.fill{border-bottom:1px solid #333}
@@ -151,8 +151,28 @@ select.fill{border:none;border-bottom:1px solid var(--border-strong);background:
   <a href="index.html" title="Zurück zum OP-Plan">← OP-Plan</a>
   <button onclick="neuerBogen()" title="Leeren Bogen">＋ Neu</button>
   <button onclick="druckenPDF()" title="Drucken / als PDF speichern">🖨 Drucken/PDF</button>
-  <button onclick="versenden()" title="Speichern + OP-Plan-Eintrag + per E-Mail versenden">✉ Speichern &amp; Versenden</button>
+  <button onclick="versenden()" title="Erst speichern + OP-Plan-Eintrag, danach PDF und Mail ans ZBM">✉ Speichern &amp; Versenden</button>
   <button class="gold" onclick="speichern()" title="In Datenbank speichern + OP-Plan-Eintrag">💾 Speichern</button>
+</div>
+
+<!-- ============ VERSAND-PANEL ============
+     Erscheint NACH erfolgreichem Speichern. Grund: mailto und Druckdialog
+     brauchen eine frische User-Activation; lief das Speichern dahinter, ging
+     es verloren, sobald die Mail-App den Fokus übernahm. Jetzt ist der Bogen
+     bereits in der Datenbank, bevor hier irgendetwas geöffnet wird. -->
+<div id="versandOverlay" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(10,34,64,.55);align-items:center;justify-content:center;padding:2rem">
+  <div style="background:#fff;border-radius:12px;padding:1.5rem;width:min(430px,92vw);box-shadow:0 12px 46px rgba(0,0,0,.32)">
+    <h2 style="font-size:16px;color:var(--navy);margin-bottom:.4rem">Bogen gespeichert ✓</h2>
+    <p id="versandInfo" style="font-size:12.5px;color:var(--muted);line-height:1.55;margin-bottom:1.1rem"></p>
+    <p style="font-size:12.5px;line-height:1.55;margin-bottom:1rem">
+      Für den Versand ans ZBM: <b>zuerst</b> das PDF sichern, <b>dann</b> den Mail-Entwurf öffnen und das PDF dort anhängen.
+    </p>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button onclick="druckenPDF()" style="padding:10px;font-size:13.5px;font-weight:600;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--navy);cursor:pointer">🖨 1. PDF sichern</button>
+      <button onclick="mailOeffnen()" style="padding:10px;font-size:13.5px;font-weight:600;border:none;border-radius:6px;background:var(--navy);color:#fff;cursor:pointer">✉ 2. Mail-Entwurf ans ZBM öffnen</button>
+      <button onclick="schliesseVersand()" style="padding:9px;font-size:12.5px;border:none;border-radius:6px;background:transparent;color:var(--muted);cursor:pointer">Schließen</button>
+    </div>
+  </div>
 </div>
 
 <!-- ============ BLATT ============ -->
@@ -828,12 +848,30 @@ async function speichern(){
 /* ---------- Drucken / PDF ---------- */
 function druckenPDF(){ window.print(); }
 
-/* ---------- Versenden: Mail-Entwurf öffnen + speichern + OP-Plan-Eintrag ----------
-   WICHTIG: Das mailto muss SOFORT beim Klick raus. Nach den await-Aufrufen in
-   persist() ist die User-Activation des Klicks abgelaufen, und der Browser
-   blockiert die externe mailto-Navigation still (dann „passiert nichts").
-   Deshalb: erst Mail öffnen, dann im Hintergrund speichern + OP-Plan. */
+/* ---------- Versenden ----------
+   Ablauf: SPEICHERN → dann Versand-Panel → Mail/PDF per eigenem Klick.
+
+   Früher lief es umgekehrt (erst mailto, dann print(), zuletzt persist()),
+   weil mailto eine frische User-Activation braucht. Das war fragil: sobald
+   die Mail-App den Fokus übernahm oder location.href die Seite entlud, kam
+   persist() nicht mehr durch — der Bogen war als PDF da, aber weder in der
+   Datenbank noch im OP-Plan. Ein verlorener Mail-Entwurf ist harmlos, ein
+   verlorener Bogen nicht. Deshalb hat das Speichern jetzt Vorrang, und die
+   Buttons im Panel liefern die frische Activation für mailto und print(). */
 async function versenden(){
+  const r = await persist();
+  if(!r.ok) return;                       // Fehler hat persist() bereits gemeldet
+  document.getElementById('versandInfo').textContent =
+    'Der Bogen ist in der Datenbank.' + (r.opMsg||'').replace(/\n+/g,' ');
+  document.getElementById('versandOverlay').style.display='flex';
+  setState('Gespeichert ✓ — bereit zum Versand');
+}
+
+function schliesseVersand(){ document.getElementById('versandOverlay').style.display='none'; }
+
+/* Mail-Entwurf ans ZBM öffnen. Wird aus dem Versand-Panel per Klick gerufen,
+   die User-Activation ist also frisch. */
+function mailOeffnen(){
   const b = collect();
   const L=[];
   L.push(standort==='traunstein' ? 'SPRECHSTUNDENANFORDERUNG WIRBELSÄULENCHIRURGIE' : 'ANMELDEBOGEN WIRBELSÄULENCHIRURGIE');
@@ -860,31 +898,20 @@ async function versenden(){
   L.push('(Hinweis: Bitte das eben als PDF gesicherte Bogen-Dokument an diese Mail anhängen.)');
   const subj=(standort==='traunstein'?'Sprechstundenanforderung Wirbelsäulenchirurgie':'Anmeldebogen Wirbelsäulenchirurgie')+(b.op_datum?' · OP '+b.op_datum:'');
 
-  // 1) Mail-Entwurf sofort öffnen (solange der Klick „frisch" ist).
-  //    In der installierten App (PWA, display-mode standalone) verschluckt
-  //    Chrome location.href='mailto:' still, wenn der mailto-Handler ein
-  //    Web-Mailer ist (z. B. Strato-Webmail) — dann via window.open an den
-  //    Browser durchreichen; ein evtl. leeres Popup danach wieder schließen.
-  //    Mail muss VOR window.print() raus: das Öffnen braucht die frische
-  //    Klick-Activation, die ein (blockierender) Druckdialog aufbrauchen würde.
+  /* In der installierten App (PWA, display-mode standalone) verschluckt Chrome
+     location.href='mailto:' still, wenn der mailto-Handler ein Web-Mailer ist
+     (z. B. Strato-Webmail) — dann via window.open an den Browser durchreichen.
+     Kein window.print() mehr an dieser Stelle: das PDF sichert der Nutzer über
+     den eigenen Button im Panel, sonst überlagern sich die Dialoge. */
   const mailtoUrl='mailto:'+ZBM_MAIL+'?subject='+encodeURIComponent(subj)+'&body='+encodeURIComponent(L.join('\n'));
-  let mailWin=null;
   if(window.matchMedia('(display-mode: standalone)').matches){
-    mailWin=window.open(mailtoUrl,'_blank');
-    if(!mailWin) location.href=mailtoUrl;   // Popup blockiert -> letzter Versuch
+    const w=window.open(mailtoUrl,'_blank');
+    if(!w) location.href=mailtoUrl;         // Popup blockiert -> letzter Versuch
+    else setTimeout(()=>{ try{ w.close(); }catch(e){} }, 1500);
   } else {
     location.href=mailtoUrl;
   }
-
-  // 2) PDF-/Druck-Dialog öffnen. window.print() braucht keine Activation und
-  //    blockiert modal im Vordergrund -> der Nutzer sichert zuerst das PDF,
-  //    die Mail wartet dahinter. Danach das evtl. leere mailto-Popup schließen.
-  window.print();
-  if(mailWin){ try{ mailWin.close(); }catch(e){} }
-
-  // 3) Bogen speichern + OP-Plan-Eintrag anlegen/aktualisieren
-  const r = await persist();
-  setState(r.ok ? 'PDF + Mail geöffnet · gespeichert ✓' : 'PDF + Mail geöffnet · nicht gespeichert');
+  setState('Mail-Entwurf geöffnet');
 }
 
 /* ---------- Neuer Bogen ---------- */
