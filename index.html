@@ -298,9 +298,8 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
     <button class="hbtn" onclick="exportCSV()">⬇ CSV Export</button>
     <button class="hbtn" onclick="exportAbwCSV()" title="Abwesenheiten als CSV">⬇ Urlaub CSV</button>
     <button class="hbtn" onclick="printPlan()">🖨 Drucken</button>
-    <a class="hbtn" href="anmeldebogen.html" title="Anmeldebogen ausfüllen" style="text-decoration:none">📋 Anmeldebogen</a>
     <button class="hbtn" onclick="openAbw()">＋ Abwesenheit</button>
-    <button class="hbtn gold" onclick="openNew()">＋ OP eintragen</button>
+    <button class="hbtn gold" onclick="openNew()" title="Anmeldebogen ausfüllen — der OP-Plan-Eintrag entsteht daraus">📋 Fall anmelden</button>
     <button class="hbtn" onclick="signOut()" title="Abmelden" style="border-color:rgba(255,255,255,0.15)">↩ Abmelden</button>
   </div>
 </header>
@@ -376,10 +375,16 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 <div class="overlay" id="overlay">
   <div class="modal">
     <div class="modal-hdr">
-      <h2 id="modalTitle">OP eintragen</h2>
+      <h2 id="modalTitle">Termin bearbeiten</h2>
       <button class="modal-close" onclick="closeModal()">✕</button>
     </div>
     <div class="modal-body">
+      <!-- Hinweis, wenn ein Anmeldebogen hinterlegt ist: dort stehen die
+           klinischen Angaben, hier gepflegte Änderungen daran divergieren. -->
+      <div id="bogenHinweis" style="display:none;grid-column:1/-1;background:rgba(201,168,76,.12);border:1px solid rgba(201,168,76,.4);border-radius:6px;padding:9px 12px;font-size:12px;line-height:1.5;margin-bottom:4px">
+        Zu diesem Fall liegt ein <a id="bogenHinweisLink" href="anmeldebogen.html" style="color:var(--gold);font-weight:600">Anmeldebogen</a> vor.
+        Diagnose, Eingriff und Kodierung bitte <b>dort</b> ändern — hier nur Termin, Saal, Status und Team.
+      </div>
       <!-- Basis -->
       <div class="section-divider">Termin & Patient</div>
       <div class="f">
@@ -975,7 +980,7 @@ function renderWeek(){
     // Klickbare Stunden-Slots (hinter den Chips)
     let slotsHTML='';
     HOURS.forEach((h,idx)=>{
-      slotsHTML+=`<div class="hour-slot" style="top:${idx*60}px" onclick="openNewAt('${dateStr}','${h}:00')" title="Klicken: OP um ${h}:00 eintragen"></div>`;
+      slotsHTML+=`<div class="hour-slot" style="top:${idx*60}px" onclick="openNewAt('${dateStr}','${h}:00')" title="Klicken: Anmeldebogen für ${h}:00 Uhr öffnen"></div>`;
     });
     dayCols+=`<div class="day-col" data-date="${dateStr}" ondragover="dragOverDayCol(event)" ondragleave="dragLeaveDayCol(event)" ondrop="dropOnDayCol(event,'${dateStr}')"><div class="day-col-inner">${slotsHTML}${chipsHTML}</div></div>`;
   }
@@ -1045,7 +1050,7 @@ function dropOnCell(e, dateStr){
   const op = ops.find(o=>o.id===dragState.id);
   if(!op || op.datum===dateStr) return;
   op.datum = dateStr;
-  saveLocal(); render(); upsertRemote(op);
+  saveLocal(); render(); upsertRemote(op); syncTerminZuBogen(op);
 }
 function dragOverDayCol(e){
   if(!dragState||dragState.mode!=='week') return;
@@ -1078,7 +1083,21 @@ function dropOnDayCol(e, dateStr){
   const mm = String(totalMin%60).padStart(2,'0');
   op.datum = dateStr;
   op.uhrzeit = `${hh}:${mm}`;
-  saveLocal(); render(); upsertRemote(op);
+  saveLocal(); render(); upsertRemote(op); syncTerminZuBogen(op);
+}
+
+/* Termin-Rückschreibung in den Anmeldebogen.
+   Wird ein Fall im Kalender verschoben, muss das neue OP-Datum auch im Bogen
+   stehen — sonst weicht der Kalender von dem PDF ab, das bereits ans ZBM
+   gegangen ist, und beim nächsten Speichern des Bogens springt der Termin
+   zurück. Fire & forget wie upsertRemote. */
+async function syncTerminZuBogen(op){
+  const bid = bogenIdOf(op);
+  if(!bid || !sb) return;
+  const { error } = await sb.from('anmeldeboegen')
+    .update({ op_datum: op.datum, uhrzeit: op.uhrzeit || '08:00' })
+    .eq('id', bid);
+  if(error) console.warn('OP-Datum im Anmeldebogen nicht aktualisiert:', error.message);
 }
 
 // DETAIL PANEL
@@ -1158,27 +1177,35 @@ function deleteFromPanel() {
   deleteRemote(id);
 }
 
-// MODAL
+// NEUANLAGE -> immer über den Anmeldebogen
+/* Der Kalender legt keine Fälle mehr selbst an. Klick auf einen Tag (oder auf
+   einen Stunden-Slot in der Wochenansicht) öffnet den Anmeldebogen mit
+   vorbelegtem Datum; der OP-Plan-Eintrag entsteht dort beim Speichern.
+   Grund: Patient, Diagnose und Eingriff wurden vorher in zwei Masken erfasst
+   (hier und im Bogen) — doppelte Arbeit und zwei divergierende Stände.
+   Das Modal bleibt nur noch für das Bearbeiten der Termin-Logistik
+   (Saal, Status, Uhrzeit) und für Altfälle ohne Bogen. */
 function openNew(dateStr){
-  editingId=null;
-  document.getElementById('modalTitle').textContent='OP eintragen';
-  document.getElementById('btnDelete').style.display='none';
-  clearForm();
-  if(dateStr) document.getElementById('f_datum').value=dateStr;
-  document.getElementById('overlay').classList.add('open');
-  setTimeout(()=>document.getElementById('f_patient').focus(),50);
+  const q = dateStr ? '?datum='+encodeURIComponent(dateStr) : '';
+  location.href = 'anmeldebogen.html'+q;
 }
 
 function openNewAt(dateStr,timeStr){
-  openNew(dateStr);
-  if(timeStr) document.getElementById('f_uhrzeit').value=timeStr;
+  const q = '?datum='+encodeURIComponent(dateStr)+(timeStr?'&uhrzeit='+encodeURIComponent(timeStr):'');
+  location.href = 'anmeldebogen.html'+q;
 }
 
 function openEdit(id){
   const op=ops.find(o=>o.id===id); if(!op) return;
   editingId=id;
-  document.getElementById('modalTitle').textContent='OP bearbeiten';
+  document.getElementById('modalTitle').textContent='Termin bearbeiten';
   document.getElementById('btnDelete').style.display='block';
+  // Hinweis auf den Anmeldebogen, sofern einer am Fall hängt
+  const bid=bogenIdOf(op), hint=document.getElementById('bogenHinweis');
+  if(hint){
+    hint.style.display = bid ? 'block' : 'none';
+    if(bid) document.getElementById('bogenHinweisLink').href='anmeldebogen.html?id='+encodeURIComponent(bid);
+  }
   const s=function(elId,val){const el=document.getElementById(elId);if(el)el.value=val||'';};
   s('f_datum',op.datum);
   s('f_uhrzeit',op.uhrzeit||'08:00');
@@ -1205,14 +1232,8 @@ function openEdit(id){
 
 function closeModal(){ document.getElementById('overlay').classList.remove('open'); editingId=null; }
 
-function clearForm(){
-  ['f_datum','f_uhrzeit','f_patient','f_diagnose','f_icd','f_icd_text','f_ops','f_ops_text','f_prozedur','f_dauer','f_implantate','f_op1','f_op2','f_monitoring','f_notiz'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-  document.getElementById('f_uhrzeit').value='08:00';
-  document.getElementById('f_op1').value='Dr. Mosafer';
-  ['f_seite','f_saal','f_anaesthesie'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('f_status').value='geplant';
-  document.getElementById('f_prioritaet').value='elektiv';
-}
+/* clearForm() entfiel mit der Neuanlage über den Anmeldebogen — das Modal wird
+   nur noch über openEdit() geöffnet und dort werden alle Felder gesetzt. */
 
 function saveOP() {
   const g = id => document.getElementById(id)?.value || '';
@@ -1241,6 +1262,7 @@ function saveOP() {
   closeModal();
   render();
   upsertRemote(gespeichert); // dann remote (fire & forget)
+  syncTerminZuBogen(gespeichert); // Termin auch im hinterlegten Bogen nachziehen
 }
 
 function deleteOP() {

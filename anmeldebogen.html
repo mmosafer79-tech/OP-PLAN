@@ -724,6 +724,28 @@ async function ladeBogen(id){
   setState('Geladen ✓');
 }
 
+/* URL-Parameter:
+   ?id=…      bestehenden Bogen laden (Bearbeiten/Drucken)
+   ?datum=…   neuer Bogen, OP-Datum vorbelegt   (Klick auf Tag im Kalender)
+   ?uhrzeit=… zusätzlich Uhrzeit vorbelegen     (Klick auf Stunden-Slot Wochenansicht)
+   Der Kalender legt keine Termine mehr selbst an — er öffnet diesen Bogen.
+   Deshalb ist der Bogen die einzige Eingabestelle; der OP-Plan-Eintrag
+   entsteht daraus in persist(). */
+/* Vorbelegung braucht keine Datenbank und darf deshalb nicht am Auth-Check
+   hängen — sonst steht der Nutzer nach dem Klick auf einen Tag vor einem
+   leeren Datum, wenn die Session gerade abgelaufen ist. */
+function vorbelegenAusURL(){
+  const q = new URLSearchParams(location.search);
+  if(q.get('id')) return;                       // bestehender Bogen -> ladeAusURL()
+  const datum = q.get('datum');
+  if(!datum) return;
+  setV('f_opdatum', datum);
+  setV('f_uhrzeit', q.get('uhrzeit') || '08:00');
+  setState('Neuer Bogen für den '+datum.split('-').reverse().join('.'));
+  const el = document.getElementById('p_name'); if(el) el.focus();
+}
+
+/* Bestehenden Bogen nachladen (nur mit Session, da DB-Zugriff). */
 async function ladeAusURL(){
   const id = new URLSearchParams(location.search).get('id');
   if(id) await ladeBogen(id);
@@ -750,28 +772,47 @@ async function persist(){
                       bogen.icu_postop? 'ICU postop':'',
                       bogen.verweildauer_tage? 'Verweildauer ca. '+bogen.verweildauer_tage+'d':'',
                       bogen.notiz].filter(Boolean);
+  /* Feld-Ownership: Der Bogen besitzt die klinischen Felder (Patient, Diagnose,
+     Eingriff, Implantat, Dringlichkeit). Die Termin-Logistik (Saal, Status,
+     Anästhesieverfahren, Operateure) gehört dem Kalender und wird dort vom
+     Sekretariat gepflegt — die darf ein erneutes Speichern des Bogens NICHT
+     zurücksetzen. Früher schrieb persist() sie hart auf '' bzw. 'geplant';
+     ein bestätigter Fall mit Saal fiel damit auf „geplant, kein Saal" zurück. */
+  const vorhanden = (await sb.from('op_eingriffe').select('*')
+                       .eq('bogen_id', bogen.id).maybeSingle()).data
+                 || (await sb.from('op_eingriffe').select('*')
+                       .eq('id','op_'+bogen.id).maybeSingle()).data
+                 || null;
+
   const op = {
-    id: 'op_'+bogen.id,
+    ...(vorhanden || {}),                       // Kalender-eigene Felder erhalten
+    id: vorhanden ? vorhanden.id : 'op_'+bogen.id,
     bogen_id: bogen.id,
-    datum: bogen.op_datum || bogen.erstellt || '',
-    uhrzeit: bogen.uhrzeit || '08:00',
+    // Datum/Uhrzeit: Bogen gewinnt, solange er gefüllt ist; sonst Kalenderstand halten
+    datum: bogen.op_datum || (vorhanden && vorhanden.datum) || bogen.erstellt || '',
+    uhrzeit: bogen.uhrzeit || (vorhanden && vorhanden.uhrzeit) || '08:00',
+    // Felder, die dem Bogen gehören
     patient: opPatientLabel(),
     diagnose: bogen.diagnose,
-    icd: bogen.icd, icd_text:'',
-    ops_code: bogen.ops_code, ops_text:'',
+    icd: bogen.icd,
+    ops_code: bogen.ops_code,
     prozedur: [bogen.op1_text, bogen.op2_text].filter(Boolean).join(' + '),
-    seite: bogen.seite, dauer: bogen.op_dauer || '', saal:'',
-    anaesthesie:'', implantate: bogen.implantat,
-    op1:'Dr. Mosafer', op2:'', anaest:'', pflege:'',
-    status:'geplant', prioritaet: (bogen.dringlichkeit||'Elektiv').toLowerCase(),
+    seite: bogen.seite,
+    dauer: bogen.op_dauer || '',
+    implantate: bogen.implantat,
+    prioritaet: (bogen.dringlichkeit||'Elektiv').toLowerCase(),
     monitoring: bogen.lagerung? 'Lagerung: '+bogen.lagerung : '',
     notiz: notizTeile.join(' · ')
   };
+  // Nur beim allerersten Anlegen vorbelegen — danach gehören sie dem Kalender.
+  if(!vorhanden){ op.status='geplant'; op.saal=''; op.anaesthesie=''; op.op1='Dr. Mosafer'; op.op2=''; }
+
   let opMsg = '';
   if(op.datum){
     const { error:e2 } = await sb.from('op_eingriffe').upsert(op);
     if(e2) opMsg = '\n\n⚠ OP-Plan-Eintrag nicht angelegt: '+e2.message;
-    else   opMsg = '\n\nOP-Plan-Eintrag „'+op.patient+'" für '+op.datum+' angelegt/aktualisiert.';
+    else   opMsg = '\n\nOP-Plan-Eintrag „'+op.patient+'" für '+op.datum
+                 + (vorhanden ? ' aktualisiert.' : ' angelegt.');
   } else {
     opMsg = '\n\nHinweis: Kein OP-Datum → noch kein Eintrag im OP-Plan-Kalender.';
   }
@@ -863,6 +904,7 @@ function neuerBogen(){
 (async function(){
   setStandort('traunstein');
   setV('f_erstellt', new Date().toISOString().slice(0,10));
+  vorbelegenAusURL();
   if(await checkAuth()) await ladeAusURL();
 })();
 </script>
