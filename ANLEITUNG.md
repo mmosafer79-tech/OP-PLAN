@@ -48,3 +48,28 @@ Aktuell speichert die App lokal pro Gerät (localStorage). Das heißt:
   (empfohlen: deine Synology DS224+ — Daten bleiben in Deutschland, DSGVO-konform).
 
 Sag einfach Bescheid, wenn du bei der Sync-Stufe weitermachen willst.
+
+---
+
+## Benutzer & Rollen (seit 2026-07-22)
+
+Login = Supabase Auth (E-Mail + Passwort). Im Login-Feld genügt der
+**Benutzername** — ohne `@` wird automatisch `@mosafer-spine.de` ergänzt
+(z. B. `KSOB` → `ksob@mosafer-spine.de`).
+
+| Rolle | Konto | Rechte |
+|---|---|---|
+| `admin` | m.mosafer79@gmail.com | alles, inkl. Status **Bestätigt** |
+| `planer` | florianwittmann@web.de | anlegen/planen/ändern/absagen; kann nicht bestätigen, bestätigte Fälle sind gesperrt |
+| `lesen` | ksob@mosafer-spine.de (Sammel-Account Sekretariat) | nur ansehen, Drucken, CSV |
+
+Durchgesetzt wird das **serverseitig** per RLS (`rollen_schema.sql`,
+Tabelle `app_rollen`, Funktion `app_rolle()`). Das UI blendet passend aus.
+
+- Neue Nutzer: im Supabase-Dashboard anlegen (Auto Confirm), dann in
+  `app_rollen` per SQL die Rolle zuordnen (Snippets in `rollen_schema.sql`,
+  Abschnitt 3 — Skript ist idempotent, einfach erneut ausführen).
+- Passwort vergessen: Admin setzt es im Dashboard neu (kein SMTP).
+- Das Passwort des KSOB-Sammel-Accounts kann nur der Admin ändern
+  (🔑 in der App ist für `lesen` deaktiviert) — bei Personalwechsel im
+  Sekretariat das Passwort im Dashboard rotieren.

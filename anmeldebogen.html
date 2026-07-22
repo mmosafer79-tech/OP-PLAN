@@ -136,7 +136,7 @@ select.fill{border:none;border-bottom:1px solid var(--border-strong);background:
   <div class="box">
     <h2>Anmeldung erforderlich</h2>
     <p>Der Anmeldebogen enthält Patientendaten. Bitte mit dem OP-Plan-Konto anmelden.</p>
-    <input type="email" id="agEmail" placeholder="name@klinik.de" autocomplete="email">
+    <input type="text" id="agEmail" placeholder="Benutzername oder E-Mail" autocomplete="username">
     <input type="password" id="agPass" placeholder="Passwort" autocomplete="current-password">
     <button onclick="agSignIn()">Anmelden</button>
     <div id="authErr"></div>
@@ -149,10 +149,10 @@ select.fill{border:none;border-bottom:1px solid var(--border-strong);background:
   <span class="spacer"></span>
   <span id="saveState"></span>
   <a href="index.html" title="Zurück zum OP-Plan">← OP-Plan</a>
-  <button onclick="neuerBogen()" title="Leeren Bogen">＋ Neu</button>
+  <button class="nur-schreib" onclick="neuerBogen()" title="Leeren Bogen">＋ Neu</button>
   <button onclick="druckenPDF()" title="Drucken / als PDF speichern">🖨 Drucken/PDF</button>
-  <button onclick="versenden()" title="Erst speichern + OP-Plan-Eintrag, danach PDF und Mail ans ZBM">✉ Speichern &amp; Versenden</button>
-  <button class="gold" onclick="speichern()" title="In Datenbank speichern + OP-Plan-Eintrag">💾 Speichern</button>
+  <button class="nur-schreib" onclick="versenden()" title="Erst speichern + OP-Plan-Eintrag, danach PDF und Mail ans ZBM">✉ Speichern &amp; Versenden</button>
+  <button class="gold nur-schreib" onclick="speichern()" title="In Datenbank speichern + OP-Plan-Eintrag">💾 Speichern</button>
 </div>
 
 <!-- ============ VERSAND-PANEL ============
@@ -540,12 +540,35 @@ let currentId = null;   // id des aktuell geladenen/gespeicherten Bogens
 /* ---------- Auth ---------- */
 async function checkAuth(){
   const { data:{ session } } = await sb.auth.getSession();
-  if(session){ document.getElementById('authGate').style.display='none'; }
+  if(session){ document.getElementById('authGate').style.display='none'; ladeRolleBogen(); }
   else       { document.getElementById('authGate').style.display='flex'; }
   return !!session;
 }
+
+/* Rollen wie im OP-Plan (rollen_schema.sql): lesen = Bogen nur ansehen und
+   drucken. Durchgesetzt wird serverseitig per RLS — hier nur das UI. */
+let ROLLE = null;
+const darfSchreiben = () => ROLLE === 'admin' || ROLLE === 'planer';
+
+async function ladeRolleBogen(){
+  const { data, error } = await sb.rpc('app_rolle');
+  if (error) console.warn('Rolle nicht ermittelbar:', error.message);
+  ROLLE = data || 'lesen';   // fail-closed
+  const schreib = darfSchreiben();
+  document.querySelectorAll('.nur-schreib').forEach(el => el.style.display = schreib ? '' : 'none');
+  if(!schreib){
+    document.querySelectorAll('.sheet-wrap input, .sheet-wrap select, .sheet-wrap textarea')
+      .forEach(el => el.disabled = true);
+    setState('Nur-Lese-Zugriff');
+  }
+}
+
+/* Universal-Login: Benutzername (z.B. "KSOB") wird zur Supabase-Mailadresse
+   ergänzt — gleiche Logik wie im OP-Plan (index.html). */
+const LOGIN_DOMAIN = 'mosafer-spine.de';
 async function agSignIn(){
-  const email=document.getElementById('agEmail').value.trim();
+  let email=document.getElementById('agEmail').value.trim().toLowerCase();
+  if(email && !email.includes('@')) email = email + '@' + LOGIN_DOMAIN;
   const pass =document.getElementById('agPass').value;
   const err  =document.getElementById('authErr'); err.textContent='';
   const { error } = await sb.auth.signInWithPassword({ email, password:pass });
@@ -777,6 +800,7 @@ async function ladeAusURL(){
    Rückgabe {ok, opMsg, bogen}; bei Abbruch/Fehler {ok:false}. */
 async function persist(){
   if(!(await checkAuth())) return {ok:false};
+  if(!darfSchreiben()){ alert('Nur-Lese-Zugriff — Speichern ist mit diesem Konto nicht möglich.'); return {ok:false}; }
   if(!g('p_name') && !g('f_diagnose')){ alert('Bitte mindestens Name oder Diagnose angeben.'); return {ok:false}; }
   const bogen = collect();
   currentId = bogen.id;
@@ -916,6 +940,7 @@ function mailOeffnen(){
 
 /* ---------- Neuer Bogen ---------- */
 function neuerBogen(){
+  if(!darfSchreiben()) return;
   if(!confirm('Neuen leeren Bogen beginnen? Nicht gespeicherte Eingaben gehen verloren.')) return;
   document.getElementById('bogen').reset();
   currentId=null;

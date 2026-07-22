@@ -56,6 +56,9 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .user-chip{font-size:11px;color:rgba(255,255,255,0.5);background:none;border:none;padding:4px 6px;border-radius:var(--radius-sm);cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:4px;white-space:nowrap;flex-shrink:0}
 .user-chip:hover{background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.85)}
 .user-chip::before{content:'🔑';font-size:10px}
+.user-chip.ro{cursor:default}
+.user-chip.ro:hover{background:none;color:rgba(255,255,255,0.5)}
+.user-chip.ro::before{content:'👤'}
 .user-chip:empty{display:none}
 
 /* TOOLBAR */
@@ -270,8 +273,8 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
     <div class="login-body">
       <div class="login-error" id="loginError"></div>
       <div class="f" style="margin-bottom:12px">
-        <label>E-Mail</label>
-        <input type="email" id="loginEmail" placeholder="name@klinik.de" autocomplete="email">
+        <label>Benutzername oder E-Mail</label>
+        <input type="text" id="loginEmail" placeholder="z.B. KSOB oder name@klinik.de" autocomplete="username">
       </div>
       <div class="f" style="margin-bottom:1rem">
         <label>Passwort</label>
@@ -298,8 +301,8 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
     <button class="hbtn" onclick="exportCSV()">⬇ CSV Export</button>
     <button class="hbtn" onclick="exportAbwCSV()" title="Abwesenheiten als CSV">⬇ Urlaub CSV</button>
     <button class="hbtn" onclick="printPlan()">🖨 Drucken</button>
-    <button class="hbtn" onclick="openAbw()">＋ Abwesenheit</button>
-    <button class="hbtn gold" onclick="openNew()" title="Anmeldebogen ausfüllen — der OP-Plan-Eintrag entsteht daraus">📋 Fall anmelden</button>
+    <button class="hbtn nur-schreib" onclick="openAbw()">＋ Abwesenheit</button>
+    <button class="hbtn gold nur-schreib" onclick="openNew()" title="Anmeldebogen ausfüllen — der OP-Plan-Eintrag entsteht daraus">📋 Fall anmelden</button>
     <button class="hbtn" onclick="signOut()" title="Abmelden" style="border-color:rgba(255,255,255,0.15)">↩ Abmelden</button>
   </div>
 </header>
@@ -613,8 +616,13 @@ function showApp(user) {
   if (user) document.getElementById('userEmail').textContent = user.email;
 }
 
+/* Universal-Login: Das Team tippt nur den Benutzernamen (z.B. "KSOB"),
+   intern wird daraus die Supabase-Mailadresse. Volle E-Mail geht weiter. */
+const LOGIN_DOMAIN = 'mosafer-spine.de';
+
 async function signIn() {
-  const email = document.getElementById('loginEmail').value.trim();
+  let email = document.getElementById('loginEmail').value.trim().toLowerCase();
+  if (email && !email.includes('@')) email = email + '@' + LOGIN_DOMAIN;
   const password = document.getElementById('loginPassword').value;
   const btn = document.getElementById('loginBtn');
   const errEl = document.getElementById('loginError');
@@ -646,8 +654,40 @@ async function signOut() {
 }
 
 sb.auth.onAuthStateChange((event, session) => {
-  if (event === 'SIGNED_OUT') { ops = []; abwesenheiten = []; showLogin(); }
+  if (event === 'SIGNED_OUT') { ops = []; abwesenheiten = []; ROLLE = null; showLogin(); }
 });
+
+// ── ROLLEN ─────────────────────────────────────────────────────────────────
+// Spiegelt die RLS-Policies (rollen_schema.sql) im UI — durchgesetzt wird
+// serverseitig. admin = alles · planer = schreiben, aber nie "bestaetigt"
+// setzen und bestätigte Fälle nicht anfassen · lesen = nur ansehen.
+let ROLLE = null;
+const darfSchreiben   = () => ROLLE === 'admin' || ROLLE === 'planer';
+const darfBestaetigen = () => ROLLE === 'admin';
+const darfAnfassen    = op => darfSchreiben() && (darfBestaetigen() || op.status !== 'bestaetigt');
+
+async function ladeRolle() {
+  const { data, error } = await sb.rpc('app_rolle');
+  if (error) console.warn('Rolle nicht ermittelbar:', error.message);
+  ROLLE = data || 'lesen';   // fail-closed: ohne Rolle nur lesen (RLS erzwingt es ohnehin)
+  wendeRolleAn();
+}
+
+function wendeRolleAn() {
+  const schreib = darfSchreiben();
+  document.querySelectorAll('.nur-schreib').forEach(el => el.style.display = schreib ? '' : 'none');
+  // "Bestätigt" im Status-Dropdown bleibt nur dem Admin wählbar
+  const opt = document.querySelector('#f_status option[value="bestaetigt"]');
+  if (opt) opt.disabled = !darfBestaetigen();
+  // 🔑 Passwort ändern: nicht für den Lese-Sammelaccount (KSOB) —
+  // eine Person würde damit alle anderen aussperren.
+  const chip = document.getElementById('userEmail');
+  if (chip) {
+    chip.onclick = schreib ? openPw : null;
+    chip.classList.toggle('ro', !schreib);
+    chip.title = schreib ? 'Eigenes Passwort ändern' : '';
+  }
+}
 
 // ── PASSWORT ÄNDERN ────────────────────────────────────────────────────────
 // Jeder Nutzer ändert sein eigenes Passwort selbst. Kein SMTP nötig:
@@ -792,6 +832,7 @@ async function loadAbwFromSupabase() {
 
 // ── INIT ───────────────────────────────────────────────────────────────────
 async function init() {
+  await ladeRolle();
   const n = new Date();
   curYear = n.getFullYear();
   curMonth = n.getMonth();
@@ -1020,12 +1061,16 @@ function getISOWeek(d){
 let dragState = null; // { id, suppressClick }
 
 function dragStartMonth(e, id){
+  const op = ops.find(o=>o.id===id);
+  if(!op || !darfAnfassen(op)){ e.preventDefault(); return; }
   dragState = { id, mode:'month', el: e.currentTarget };
   e.currentTarget.classList.add('dragging');
   e.dataTransfer.effectAllowed = 'move';
   try { e.dataTransfer.setData('text/plain', id); } catch(_) {}
 }
 function dragStartWeek(e, id){
+  const op = ops.find(o=>o.id===id);
+  if(!op || !darfAnfassen(op)){ e.preventDefault(); return; }
   dragState = { id, mode:'week', el: e.currentTarget };
   e.currentTarget.classList.add('dragging');
   e.dataTransfer.effectAllowed = 'move';
@@ -1048,7 +1093,7 @@ function dropOnCell(e, dateStr){
   e.currentTarget.classList.remove('drop-target');
   if(!dragState) return;
   const op = ops.find(o=>o.id===dragState.id);
-  if(!op || op.datum===dateStr) return;
+  if(!op || op.datum===dateStr || !darfAnfassen(op)) return;
   op.datum = dateStr;
   saveLocal(); render(); upsertRemote(op); syncTerminZuBogen(op);
 }
@@ -1071,7 +1116,7 @@ function dropOnDayCol(e, dateStr){
   e.currentTarget.classList.remove('drop-target');
   if(!dragState) return;
   const op = ops.find(o=>o.id===dragState.id);
-  if(!op) return;
+  if(!op || !darfAnfassen(op)) return;
   const inner = e.currentTarget.querySelector('.day-col-inner');
   const rect = inner.getBoundingClientRect();
   const y = Math.max(0, Math.min(rect.height-1, e.clientY - rect.top));
@@ -1128,6 +1173,15 @@ function showDetail(id){
       <div id="dp-bogen"><div class="dp-doc"><div class="dp-doc-name">Prüfe …</div></div></div>
     </div>
   `;
+  // Bearbeiten/Löschen nur, wenn die Rolle es erlaubt; für den Planer ist
+  // ein bestätigter Fall gesperrt — Hinweisschloss statt Buttons.
+  const anfassbar = darfAnfassen(op);
+  document.getElementById('dp-edit-btn').style.display = anfassbar ? '' : 'none';
+  document.getElementById('dp-del-btn').style.display  = anfassbar ? '' : 'none';
+  if(!anfassbar && darfSchreiben()){
+    document.getElementById('dp-body').insertAdjacentHTML('beforeend',
+      `<div style="margin-top:10px;background:var(--green-bg);border:1px solid var(--green-chip);border-radius:6px;padding:8px 11px;font-size:12px;color:var(--green)">🔒 Bestätigter Fall — Änderungen nur durch Dr.&nbsp;Mosafer.</div>`);
+  }
   document.getElementById('detailPanel').classList.add('open');
   zeigeBogen(op);
 }
@@ -1168,7 +1222,10 @@ async function zeigeBogen(op){
 function closeDetail(){ document.getElementById('detailPanel').classList.remove('open'); detailId=null; }
 function editFromPanel(){ if(detailId){const id=detailId;closeDetail();openEdit(id);} }
 function deleteFromPanel() {
-  if (!detailId || !confirm('OP-Eintrag löschen?')) return;
+  if (!detailId || !darfSchreiben()) return;
+  const _op = ops.find(o => o.id === detailId);
+  if (_op && !darfAnfassen(_op)) { alert('🔒 Bestätigter Fall — Löschen nur durch Dr. Mosafer.'); return; }
+  if (!confirm('OP-Eintrag löschen?')) return;
   const id = detailId;
   ops = ops.filter(o => o.id !== id);
   saveLocal();
@@ -1186,17 +1243,21 @@ function deleteFromPanel() {
    Das Modal bleibt nur noch für das Bearbeiten der Termin-Logistik
    (Saal, Status, Uhrzeit) und für Altfälle ohne Bogen. */
 function openNew(dateStr){
+  if(!darfSchreiben()) return;
   const q = dateStr ? '?datum='+encodeURIComponent(dateStr) : '';
   location.href = 'anmeldebogen.html'+q;
 }
 
 function openNewAt(dateStr,timeStr){
+  if(!darfSchreiben()) return;
   const q = '?datum='+encodeURIComponent(dateStr)+(timeStr?'&uhrzeit='+encodeURIComponent(timeStr):'');
   location.href = 'anmeldebogen.html'+q;
 }
 
 function openEdit(id){
   const op=ops.find(o=>o.id===id); if(!op) return;
+  if(!darfSchreiben()) return;
+  if(!darfAnfassen(op)){ alert('🔒 Bestätigter Fall — Änderungen nur durch Dr. Mosafer.'); return; }
   editingId=id;
   document.getElementById('modalTitle').textContent='Termin bearbeiten';
   document.getElementById('btnDelete').style.display='block';
@@ -1250,6 +1311,10 @@ function saveOP() {
   };
   if (!op.datum) { alert('Bitte Datum angeben.'); return; }
   if (!op.prozedur && !op.diagnose) { alert('Bitte Prozedur oder Diagnose angeben.'); return; }
+  if (!darfSchreiben()) return;
+  if (op.status === 'bestaetigt' && !darfBestaetigen()) {
+    alert('Nur Dr. Mosafer kann einen Fall bestätigen.'); return;
+  }
   // Über das Formular gemergt, nicht ersetzt: sonst verlöre ein bearbeiteter Fall
   // die bogen_id (Link zum Anmeldebogen) und die Altwerte anaest/pflege.
   let gespeichert = op;
@@ -1266,7 +1331,10 @@ function saveOP() {
 }
 
 function deleteOP() {
-  if (!editingId || !confirm('OP-Eintrag wirklich löschen?')) return;
+  if (!editingId || !darfSchreiben()) return;
+  const _op = ops.find(o => o.id === editingId);
+  if (_op && !darfAnfassen(_op)) { alert('🔒 Bestätigter Fall — Löschen nur durch Dr. Mosafer.'); return; }
+  if (!confirm('OP-Eintrag wirklich löschen?')) return;
   const id = editingId;
   ops = ops.filter(o => o.id !== id);
   saveLocal();
@@ -1346,6 +1414,7 @@ function fillPersonSelect(){
 
 // ── ABWESENHEITEN: MODAL ───────────────────────────────────────────────────
 function openAbw(id){
+  if(!darfSchreiben()) return;   // lesen: Bänder nur ansehen (Tooltip), nicht bearbeiten
   editingAbwId = id || null;
   const a = id ? abwesenheiten.find(x => x.id === id) : null;
   const s = (el,v) => { const e = document.getElementById(el); if(e) e.value = v; };
@@ -1366,6 +1435,7 @@ function closeAbw(){
 }
 
 function saveAbw(){
+  if(!darfSchreiben()) return;
   const g = id => document.getElementById(id)?.value || '';
   const a = {
     id: editingAbwId || 'abw_' + Date.now().toString(),
@@ -1385,7 +1455,7 @@ function saveAbw(){
 }
 
 function deleteAbw(){
-  if(!editingAbwId || !confirm('Abwesenheit wirklich löschen?')) return;
+  if(!editingAbwId || !darfSchreiben() || !confirm('Abwesenheit wirklich löschen?')) return;
   const id = editingAbwId;
   abwesenheiten = abwesenheiten.filter(x => x.id !== id);
   saveAbwLocal();
