@@ -232,10 +232,6 @@ select.fill{border:none;border-bottom:1px solid var(--border-strong);background:
     <div class="field"><label>2. Operation</label><textarea class="fill" id="f_op2_text" rows="1" placeholder="optional"></textarea></div>
     <div class="two-col">
       <div class="field"><label>Operateur</label><input class="fill" id="f_operateur" placeholder="Name"></div>
-      <div class="field"><label>Qualifikation</label>
-        <label class="cbx"><input type="radio" name="opqual" value="OA"><span class="mark"></span>OA</label>
-        <label class="cbx"><input type="radio" name="opqual" value="FA"><span class="mark"></span>FA</label>
-      </div>
       <div class="field"><label>OP-Dauer</label><input class="fill short" id="f_dauer" type="number" min="0" placeholder="0"><span class="hint">min</span></div>
       <div class="field"><label>Seite</label><input class="fill" id="f_seite" placeholder="li / re / bds"></div>
     </div>
@@ -244,9 +240,13 @@ select.fill{border:none;border-bottom:1px solid var(--border-strong);background:
       <span class="tag">Lagerung:</span>
       <label class="cbx"><input type="radio" name="lagerung" value="Bauchlage"><span class="mark"></span>Bauchlage</label>
       <label class="cbx"><input type="radio" name="lagerung" value="Rücken"><span class="mark"></span>Rücken</label>
-      <label class="cbx"><input type="radio" name="lagerung" value="Seite mit Vacuum re."><span class="mark"></span>Seite m. Vacuum re.</label>
-      <label class="cbx"><input type="radio" name="lagerung" value="Seite mit Vacuum li."><span class="mark"></span>Seite m. Vacuum li.</label>
-      <label class="cbx"><input type="radio" name="lagerung" value="Extensionstisch"><span class="mark"></span>Ext.-Tisch</label>
+      <label class="cbx"><input type="radio" name="lagerung" value="Seitenlagerung"><span class="mark"></span>Seitenlagerung</label>
+      <label class="cbx"><input type="radio" name="lagerung" value="Halotraktion"><span class="mark"></span>Halotraktion</label>
+    </div>
+    <div class="sep"></div>
+    <div class="inline-cbx">
+      <span class="tag">Neuromonitoring:</span>
+      <label class="cbx"><input type="checkbox" id="f_ionm"><span class="mark"></span>IONM erforderlich</label>
     </div>
     <div class="sep"></div>
     <div class="inline-cbx">
@@ -275,10 +275,7 @@ select.fill{border:none;border-bottom:1px solid var(--border-strong);background:
     <div class="bt">Aufnahme &amp; Planung</div>
     <div class="inline-cbx">
       <label class="cbx"><input type="radio" name="aufn" value="stationär"><span class="mark"></span>stationär</label>
-      <span class="hint" data-only="traunstein">(→ G-AEP ausfüllen!)</span>
       <label class="cbx"><input type="radio" name="aufn" value="ambulant"><span class="mark"></span>ambulant</label>
-      <label class="cbx" data-only="traunstein"><input type="checkbox" id="f_gaep"><span class="mark"></span>G-AEP ausgefüllt</label>
-      <label class="cbx" data-only="traunstein"><input type="checkbox" id="f_nzopv"><span class="mark"></span>nicht via ZOPV planen</label>
       <label class="cbx" data-only="traunstein"><input type="checkbox" id="f_aoz"><span class="mark"></span>OP i. AOZ möglich</label>
     </div>
     <div class="sep"></div>
@@ -316,13 +313,9 @@ select.fill{border:none;border-bottom:1px solid var(--border-strong);background:
     <div class="block">
       <div class="bt">Rehabilitation</div>
       <div class="inline-cbx">
-        <label class="cbx"><input type="radio" name="reha" value="ambulant"><span class="mark"></span>ambulant</label>
-        <label class="cbx"><input type="radio" name="reha" value="stationär"><span class="mark"></span>stationär</label>
-        <label class="cbx"><input type="radio" name="reha" value="nicht gewünscht"><span class="mark"></span>nicht gewünscht</label>
-      </div>
-      <div class="inline-cbx" style="margin-top:3px">
-        <label class="cbx"><input type="checkbox" id="r_ahb"><span class="mark"></span>AHB</label>
-        <label class="cbx"><input type="checkbox" id="r_6wo"><span class="mark"></span>6 Wo. nach OP</label>
+        <label class="cbx"><input type="radio" name="reha" value="AHB"><span class="mark"></span>AHB</label>
+        <label class="cbx"><input type="radio" name="reha" value="6 Wo. nach OP"><span class="mark"></span>6 Wo. nach OP</label>
+        <label class="cbx"><input type="radio" name="reha" value="keine"><span class="mark"></span>keine</label>
       </div>
       <div class="field"><label>Reha planen ab</label><input class="fill" id="r_ab" type="date"></div>
       <div class="field"><label>bevorzugt in</label><input class="fill" id="r_klinik" placeholder="Wunschklinik"></div>
@@ -331,16 +324,11 @@ select.fill{border:none;border-bottom:1px solid var(--border-strong);background:
 
     <!-- KINDER / KONSILE / KORSETT -->
     <div class="block">
-      <div class="bt">Kinder / Konsile / Korsett</div>
+      <div class="bt">Kinder / Korsett</div>
       <div class="inline-cbx">
         <label class="cbx"><input type="checkbox" id="k_narkose"><span class="mark"></span>Narkose</label>
         <label class="cbx"><input type="checkbox" id="k_sedierung"><span class="mark"></span>in Sedierung</label>
       </div>
-      <div class="sep"></div>
-      <div class="hint" style="font-weight:700;color:var(--navy);margin-bottom:3px">Ausstehende Konsile (stationär)</div>
-      <div class="field"><label class="cbx" style="flex-shrink:0"><input type="checkbox" id="k_kardio"><span class="mark"></span>Kardiologie</label><input class="fill" id="k_kardio_text" placeholder="…"></div>
-      <div class="field"><label class="cbx" style="flex-shrink:0"><input type="checkbox" id="k_neuro"><span class="mark"></span>Neurologie</label><input class="fill" id="k_neuro_text" placeholder="…"></div>
-      <div class="field"><label class="cbx" style="flex-shrink:0"><input type="checkbox" id="k_anaesth"><span class="mark"></span>Anästhesie</label><input class="fill" id="k_sonst" placeholder="weitere…"></div>
       <div class="sep"></div>
       <div class="inline-cbx">
         <span class="tag">Korsett:</span>
@@ -405,6 +393,7 @@ select.fill{border:none;border-bottom:1px solid var(--border-strong);background:
         <label class="cbx"><input type="checkbox" id="d_funktion"><span class="mark"></span>Funktionsaufnahmen</label>
         <div class="diag-sub">
           <label class="cbx"><input type="checkbox" id="d_bending"><span class="mark"></span>Bending</label>
+          <label class="cbx"><input type="checkbox" id="d_traktion"><span class="mark"></span>Traktionsaufnahme</label>
         </div>
         <label class="cbx"><input type="checkbox" id="d_ct"><span class="mark"></span><b>CT</b></label>
         <div class="diag-sub">
@@ -615,6 +604,7 @@ function diagnostikText(){
   const t=[];
   if(gc('d_roentgen')){ const s=['HWS','LWS','PAN'].filter(x=>gc('d_rx_'+x.toLowerCase())); t.push('Rö'+(s.length?' ('+s.join('/')+')':'')); }
   if(gc('d_funktion')) t.push('Funktion'+(gc('d_bending')?'/Bending':''));
+  if(gc('d_traktion')) t.push('Traktionsaufnahme');
   if(gc('d_ct'))       t.push('CT'+(gc('d_ct_nav')?' (Nav)':''));
   if(gc('d_mrt')){ const s=[]; if(gc('d_mrt_navkopf'))s.push('Nav Kopf'); if(gc('d_mrt_funkt'))s.push('funkt.'); t.push('MRT'+(s.length?' ('+s.join('/')+')':'')); }
   if(gc('d_infiltration')) t.push('Infiltration');
@@ -656,21 +646,21 @@ function collect(){
     // Eingriff
     dringlichkeit:radio('dring'), diagnose:g('f_diagnose'), icd:g('f_icd'), ops_code:g('f_ops'),
     op1_text:g('f_op1_text'), op2_text:g('f_op2_text'),
-    op_qualifikation:radio('opqual'), op_dauer:g('f_dauer'),
-    lagerung:radio('lagerung'),
+    op_dauer:g('f_dauer'),
+    lagerung:radio('lagerung'), ionm:gc('f_ionm'),
     ab_single_shot:gc('ab_single'), ab_cefuroxim:gc('ab_cefu'), ab_antibiose_sonst:g('ab_sonst'),
     implantat:g('f_implantat'), implantat_bestellen:gc('f_impl_best'), seite:g('f_seite'),
     op_datum:g('f_opdatum'), uhrzeit:g('f_uhrzeit'),
     blut_blutgruppe:gc('b_blutgruppe'), blut_ek:gc('b_ery'), blut_cellsaver:gc('b_cellsaver'),
     icu_postop:gc('f_icu'),
     // Aufnahme & Planung
-    aufnahmemodus:radio('aufn'), g_aep:gc('f_gaep'), nicht_zopv:gc('f_nzopv'), aoz_moeglich:gc('f_aoz'),
+    aufnahmemodus:radio('aufn'), aoz_moeglich:gc('f_aoz'),
     op_innerhalb_wert:g('f_innerhalb'), op_innerhalb_einheit:g('f_innerhalb_einheit'),
     nicht_vor_tagen:g('f_nichtvor'), aufnahme_zeitpunkt:radio('aufnzeit'),
     verweildauer_tage:g('f_verweil'), praeop_tage:g('f_praeop'), postop_tage:g('f_postop'),
     unterbringung:radio('unterbr'),
     // Reha
-    reha_art:radio('reha'), reha_ahb:gc('r_ahb'), reha_6wo:gc('r_6wo'),
+    reha_art:radio('reha'),
     reha_planen_ab:g('r_ab'), reha_wunschklinik:g('r_klinik'), sozialdienst_am:g('r_sozial'),
     // Gerinnung & Medikamente
     keine_medikamente:gc('m_keine'),
@@ -682,13 +672,10 @@ function collect(){
     allergien:g('f_allergien'), praeop_abfuehren:gc('f_abfuehren'),
     // Kinder / Konsile / Korsett
     kind_narkose:gc('k_narkose'), kind_sedierung:gc('k_sedierung'),
-    konsil_kardio:gc('k_kardio'), konsil_kardio_text:g('k_kardio_text'),
-    konsil_neuro:gc('k_neuro'), konsil_neuro_text:g('k_neuro_text'),
-    konsil_anaesth:gc('k_anaesth'), konsil_sonst:g('k_sonst'),
     korsett:radio('korsett'), korsett_sonstiges:g('korsett_sonst'),
     // Diagnostik anfordern
     d_roentgen:gc('d_roentgen'), d_rx_hws:gc('d_rx_hws'), d_rx_lws:gc('d_rx_lws'), d_rx_pan:gc('d_rx_pan'),
-    d_funktion:gc('d_funktion'), d_bending:gc('d_bending'),
+    d_funktion:gc('d_funktion'), d_bending:gc('d_bending'), d_traktion:gc('d_traktion'),
     d_ct:gc('d_ct'), d_ct_nav:gc('d_ct_nav'),
     d_mrt:gc('d_mrt'), d_mrt_navkopf:gc('d_mrt_navkopf'), d_mrt_funkt:gc('d_mrt_funkt'),
     d_infiltration:gc('d_infiltration'), d_myelo:gc('d_myelo'), d_sonstiges:g('d_sonstiges'),
@@ -717,19 +704,19 @@ function apply(b){
   setR('dring',b.dringlichkeit);
   setV('f_diagnose',b.diagnose); setV('f_icd',b.icd); setV('f_ops',b.ops_code);
   setV('f_op1_text',b.op1_text); setV('f_op2_text',b.op2_text);
-  setR('opqual',b.op_qualifikation); setV('f_dauer',b.op_dauer);
-  setR('lagerung',b.lagerung);
+  setV('f_dauer',b.op_dauer);
+  setR('lagerung',b.lagerung); setC('f_ionm',b.ionm);
   setC('ab_single',b.ab_single_shot); setC('ab_cefu',b.ab_cefuroxim); setV('ab_sonst',b.ab_antibiose_sonst);
   setV('f_implantat',b.implantat); setC('f_impl_best',b.implantat_bestellen); setV('f_seite',b.seite);
   setV('f_opdatum',b.op_datum); setV('f_uhrzeit',b.uhrzeit);
   setC('b_blutgruppe',b.blut_blutgruppe); setC('b_ery',b.blut_ek); setC('b_cellsaver',b.blut_cellsaver);
   setC('f_icu',b.icu_postop);
-  setR('aufn',b.aufnahmemodus); setC('f_gaep',b.g_aep); setC('f_nzopv',b.nicht_zopv); setC('f_aoz',b.aoz_moeglich);
+  setR('aufn',b.aufnahmemodus); setC('f_aoz',b.aoz_moeglich);
   setV('f_innerhalb',b.op_innerhalb_wert); setV('f_innerhalb_einheit',b.op_innerhalb_einheit);
   setV('f_nichtvor',b.nicht_vor_tagen); setR('aufnzeit',b.aufnahme_zeitpunkt);
   setV('f_verweil',b.verweildauer_tage); setV('f_praeop',b.praeop_tage); setV('f_postop',b.postop_tage);
   setR('unterbr',b.unterbringung);
-  setR('reha',b.reha_art); setC('r_ahb',b.reha_ahb); setC('r_6wo',b.reha_6wo);
+  setR('reha',b.reha_art);
   setV('r_ab',b.reha_planen_ab); setV('r_klinik',b.reha_wunschklinik); setV('r_sozial',b.sozialdienst_am);
   setC('m_keine',b.keine_medikamente);
   setR('ass',b.ass_modus); setV('m_ass_ab',b.ass_ab);
@@ -739,11 +726,8 @@ function apply(b){
   setC('m_schrittmacher',b.ab_schrittmacher); setV('m_sonstiges',b.ab_sonstiges);
   setV('f_allergien',b.allergien); setC('f_abfuehren',b.praeop_abfuehren);
   setC('k_narkose',b.kind_narkose); setC('k_sedierung',b.kind_sedierung);
-  setC('k_kardio',b.konsil_kardio); setV('k_kardio_text',b.konsil_kardio_text);
-  setC('k_neuro',b.konsil_neuro); setV('k_neuro_text',b.konsil_neuro_text);
-  setC('k_anaesth',b.konsil_anaesth); setV('k_sonst',b.konsil_sonst);
   setR('korsett',b.korsett); setV('korsett_sonst',b.korsett_sonstiges);
-  ['d_roentgen','d_rx_hws','d_rx_lws','d_rx_pan','d_funktion','d_bending','d_ct','d_ct_nav','d_mrt','d_mrt_navkopf','d_mrt_funkt','d_infiltration','d_myelo'].forEach(k=>setC(k,b[k]));
+  ['d_roentgen','d_rx_hws','d_rx_lws','d_rx_pan','d_funktion','d_bending','d_traktion','d_ct','d_ct_nav','d_mrt','d_mrt_navkopf','d_mrt_funkt','d_infiltration','d_myelo'].forEach(k=>setC(k,b[k]));
   setV('d_sonstiges',b.d_sonstiges);
   setR('bef_ro',b.bef_ro_status);   setV('bef_ro_geplant',b.bef_ro_geplant);   setV('bef_ro_hz',b.bef_ro_hz);
   setR('bef_ct',b.bef_ct_status);   setV('bef_ct_geplant',b.bef_ct_geplant);   setV('bef_ct_hz',b.bef_ct_hz);
@@ -845,7 +829,7 @@ async function persist(){
     dauer: bogen.op_dauer || '',
     implantate: bogen.implantat,
     prioritaet: (bogen.dringlichkeit||'Elektiv').toLowerCase(),
-    monitoring: bogen.lagerung? 'Lagerung: '+bogen.lagerung : '',
+    monitoring: [bogen.lagerung? 'Lagerung: '+bogen.lagerung : '', bogen.ionm? 'IONM' : ''].filter(Boolean).join(' · '),
     notiz: notizTeile.join(' · ')
   };
   // Nur beim allerersten Anlegen vorbelegen — danach gehören sie dem Kalender.
@@ -906,12 +890,13 @@ function mailOeffnen(){
   L.push('Diagnose: '+(b.diagnose||'-'));
   L.push('Operation: '+[b.op1_text,b.op2_text].filter(Boolean).join(' + '));
   if(b.lagerung)  L.push('Lagerung: '+b.lagerung);
+  if(b.ionm)      L.push('Neuromonitoring: IONM erforderlich');
   if(b.op_dauer)  L.push('OP-Dauer: ca. '+b.op_dauer+' min');
   if(b.implantat) L.push('Implantat: '+b.implantat+(b.implantat_bestellen?' (muss bestellt werden → sep. Bogen)':''));
   if(b.op_datum)  L.push('OP-Datum: '+b.op_datum+(b.uhrzeit?' '+b.uhrzeit:''));
   if(b.aufnahmemodus) L.push('Aufnahme: '+b.aufnahmemodus+(b.aufnahme_zeitpunkt?' · '+b.aufnahme_zeitpunkt:''));
   if(b.verweildauer_tage) L.push('Verweildauer: ca. '+b.verweildauer_tage+' Tage');
-  if(b.reha_art) L.push('Reha: '+b.reha_art+(b.reha_ahb?' (AHB)':'')+(b.reha_wunschklinik?' · '+b.reha_wunschklinik:''));
+  if(b.reha_art) L.push('Reha: '+b.reha_art+(b.reha_wunschklinik?' · '+b.reha_wunschklinik:''));
   const dg=diagnostikText(); if(dg) L.push('Diagnostik: '+dg);
   const ab=absetzenText();   if(ab) L.push(ab);
   if(b.allergien) L.push('Allergien: '+b.allergien);
