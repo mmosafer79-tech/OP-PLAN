@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Patientenliste importieren · OP-Plan Traunstein</title>
+<style>
+:root{
+  --navy:#0a2240; --navy-light:#143a63; --gold:#c9a84c; --gold-light:#dcc074;
+  --bg:#f5f6f8; --surface:#fff; --border:#e3e6ea; --text:#1c2733;
+  --text-muted:#5c6b7a; --text-faint:#93a1ae;
+  --green:#0f6e56; --green-bg:#e1f5ee; --amber:#854f0b; --amber-bg:#faeeda;
+  --red:#a32d2d; --red-bg:#fcebeb; --blue:#185fa5; --blue-bg:#e6f1fb;
+  --radius:10px; --radius-sm:6px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);font-size:14px}
+header{background:var(--navy);color:#fff;padding:14px 22px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+header h1{font-size:16px;font-weight:600}
+header .sub{font-size:11.5px;color:rgba(255,255,255,.6)}
+.spacer{flex:1}
+.hbtn{padding:6px 14px;font-size:12px;border-radius:var(--radius-sm);cursor:pointer;font-weight:500;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:#fff}
+.hbtn:hover{background:rgba(255,255,255,.18)}
+main{max-width:1180px;margin:22px auto;padding:0 18px 60px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;margin-bottom:16px}
+.card h2{font-size:14px;color:var(--navy);margin-bottom:10px}
+.hint{font-size:12px;color:var(--text-muted);line-height:1.55}
+.drop{border:2px dashed var(--border);border-radius:var(--radius);padding:28px;text-align:center;color:var(--text-muted);font-size:13px;cursor:pointer;transition:.15s}
+.drop:hover,.drop.over{border-color:var(--gold);background:#fdfaf2;color:var(--navy)}
+.btn{padding:9px 18px;font-size:13px;font-weight:600;border:none;border-radius:var(--radius-sm);background:var(--navy);color:#fff;cursor:pointer}
+.btn:hover{background:var(--navy-light)}
+.btn.gold{background:var(--gold);color:var(--navy)}
+.btn.gold:hover{background:var(--gold-light)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.ghost{background:transparent;color:var(--text-muted);border:1px solid var(--border)}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{background:var(--bg);color:var(--text-muted);text-align:left;padding:8px 9px;font-weight:600;position:sticky;top:0;z-index:1}
+td{padding:7px 9px;border-top:1px solid var(--border);vertical-align:top}
+tr.skip{background:#fafbfc;color:var(--text-faint)}
+.tbl-wrap{max-height:60vh;overflow:auto;border:1px solid var(--border);border-radius:var(--radius-sm)}
+.tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:700;white-space:nowrap}
+.t-neu{background:var(--green-bg);color:var(--green)}
+.t-dub{background:var(--amber-bg);color:var(--amber)}
+.t-wieder{background:var(--blue-bg);color:var(--blue)}
+.t-fehler{background:var(--red-bg);color:var(--red)}
+.t-wl{background:var(--bg);color:var(--text-muted)}
+.msg{padding:10px 13px;border-radius:var(--radius-sm);font-size:12.5px;margin-bottom:12px;line-height:1.5}
+.msg.warn{background:var(--amber-bg);color:var(--amber)}
+.msg.err{background:var(--red-bg);color:var(--red)}
+.msg.ok{background:var(--green-bg);color:var(--green)}
+code{background:var(--bg);padding:1px 5px;border-radius:4px;font-size:11.5px}
+#authGate{position:fixed;inset:0;z-index:9999;background:var(--navy);display:flex;align-items:center;justify-content:center;padding:2rem}
+#authGate .box{background:#fff;border-radius:12px;padding:1.6rem;width:min(340px,90vw)}
+#authGate h2{font-size:16px;color:var(--navy);margin-bottom:.3rem}
+#authGate p{font-size:12px;color:var(--text-muted);margin-bottom:1rem}
+#authGate input{width:100%;padding:9px 11px;font-size:14px;border:1px solid var(--border);border-radius:6px;margin-bottom:8px}
+#authGate button{width:100%;padding:10px;font-size:14px;font-weight:600;border:none;border-radius:6px;background:var(--navy);color:#fff;cursor:pointer}
+.mapping{font-size:12px;border-collapse:collapse}
+.mapping td{border:none;padding:2px 10px 2px 0}
+</style>
+</head>
+<body>
+
+<div id="authGate" style="display:none">
+  <div class="box">
+    <h2>OP-Plan · Anmeldung</h2>
+    <p>Bitte mit dem Klinik-Zugang anmelden.</p>
+    <input id="agEmail" placeholder="Benutzer" autocomplete="username">
+    <input id="agPass" type="password" placeholder="Passwort" autocomplete="current-password">
+    <button onclick="agSignIn()">Anmelden</button>
+    <p id="authErr" style="color:#a32d2d;margin-top:.6rem"></p>
+  </div>
+</div>
+
+<header>
+  <div>
+    <h1>📥 Patientenliste importieren</h1>
+    <div class="sub">Excel/CSV der MFA → Anmeldebögen + OP-Plan-Einträge</div>
+  </div>
+  <span class="spacer"></span>
+  <button class="hbtn" onclick="location.href='index.html'">↩ Zurück zum OP-Plan</button>
+</header>
+
+<main>
+
+  <div class="card">
+    <h2>1 · Datei wählen</h2>
+    <div class="drop" id="drop">
+      <b>Excel- oder CSV-Datei hier ablegen</b><br>
+      oder klicken zum Auswählen &nbsp;·&nbsp; .xlsx, .xls, .csv
+    </div>
+    <input type="file" id="file" accept=".xlsx,.xls,.csv" style="display:none">
+    <p class="hint" style="margin-top:10px">
+      Die Datei wird ausschließlich hier im Browser gelesen — sie wird nicht hochgeladen.
+      Erst beim Übernehmen gehen die ausgewählten Fälle wie gewohnt nach Supabase.
+      <b>Die Liste enthält Klarnamen und gehört daher nicht in den Projektordner</b>
+      <code>~/Code/OP-PLAN/</code> (öffentliches Repo).
+    </p>
+  </div>
+
+  <div class="card" id="mapCard" style="display:none">
+    <h2>2 · Erkannte Spalten</h2>
+    <div id="mapInfo"></div>
+  </div>
+
+  <div class="card" id="previewCard" style="display:none">
+    <h2>3 · Fälle prüfen und auswählen</h2>
+    <div id="checkMsg"></div>
+    <div class="tbl-wrap">
+      <table id="tbl">
+        <thead><tr>
+          <th style="width:34px"><input type="checkbox" id="chkAll" onchange="alleUm(this.checked)"></th>
+          <th>Status</th><th>Patient</th><th>Geb.-Datum</th><th>Fall-Nr.</th>
+          <th>OP-Datum</th><th>Diagnose</th><th>Eingriff</th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <div style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button class="btn gold" id="btnGo" onclick="uebernehmen()">Ausgewählte übernehmen</button>
+      <button class="btn ghost" onclick="location.reload()">Abbrechen</button>
+      <span class="hint" id="selInfo"></span>
+    </div>
+  </div>
+
+  <div class="card" id="resultCard" style="display:none">
+    <h2>4 · Ergebnis</h2>
+    <div id="result"></div>
+  </div>
+
+  <div class="card">
+    <h2>Spaltenüberschriften der Liste</h2>
+    <p class="hint" style="margin-bottom:8px">
+      Die erste Zeile der Tabelle muss die Überschriften enthalten. Groß-/Kleinschreibung,
+      Leerzeichen, Punkte und Umlaute sind egal — <code>Geb.-Datum</code>, <code>geburtsdatum</code>
+      und <code>GEBDAT</code> werden alle erkannt. Unbekannte Spalten werden ignoriert.
+    </p>
+    <table class="mapping" id="aliasTbl"></table>
+  </div>
+
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+/* ============================================================
+   LISTEN-IMPORT · OP-Plan Traunstein
+
+   Zweck: Die von der MFA gepflegte Patientenliste einmal einlesen,
+   statt jeden Fall von Hand in den Anmeldebogen zu tippen.
+
+   Grundsatz — kein Nebeneingang: Der Import legt NIE einen reinen
+   Kalendereintrag an. Pro Zeile entsteht dasselbe Paar wie beim
+   Speichern eines Bogens: ein Anmeldebogen in 'anmeldeboegen' plus
+   der verknüpfte Eintrag in 'op_eingriffe' (bogen_id). Sonst hätten
+   wir die Doppelerfassung zurück, die am 21.07. beseitigt wurde.
+
+   Grundsatz — nie überschreiben: Jede importierte Zeile bekommt eine
+   frische Bogen-ID. Ein wiederkehrender Patient ist damit immer ein
+   NEUER Fall; ein bestehender Bogen kann durch den Import prinzipiell
+   nicht überschrieben werden. Die Dublettenprüfung warnt nur und
+   nimmt den Haken weg — entscheiden tut der Mensch.
+   ============================================================ */
+
+const SUPABASE_URL  = 'https://rcchxtczknnqqyavmxzv.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjY2h4dGN6a25ucXF5YXZteHp2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAwNDQxODUsImV4cCI6MjA5NTYyMDE4NX0.U-JHBVq8uzdvicayfIuSK4aG12dMUkh6i5z8Oy5Yea4';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+/* ---------- Auth & Rolle (wie OP-Plan / Anmeldebogen) ---------- */
+let ROLLE = null;
+const darfSchreiben = () => ROLLE === 'admin' || ROLLE === 'planer';
+const LOGIN_DOMAIN = 'mosafer-spine.de';
+
+async function checkAuth(){
+  const { data:{ session } } = await sb.auth.getSession();
+  if(session){ document.getElementById('authGate').style.display='none'; await ladeRolle(); }
+  else       { document.getElementById('authGate').style.display='flex'; }
+  return !!session;
+}
+async function ladeRolle(){
+  const { data, error } = await sb.rpc('app_rolle');
+  if(error) console.warn('Rolle nicht ermittelbar:', error.message);
+  ROLLE = data || 'lesen';                       // fail-closed
+  if(!darfSchreiben()){
+    document.querySelector('main').insertAdjacentHTML('afterbegin',
+      '<div class="msg err">Nur-Lese-Zugriff — mit diesem Konto ist kein Import möglich.</div>');
+    document.getElementById('drop').style.pointerEvents='none';
+    document.getElementById('drop').style.opacity='.5';
+  }
+}
+async function agSignIn(){
+  let email = document.getElementById('agEmail').value.trim().toLowerCase();
+  if(email && !email.includes('@')) email = email + '@' + LOGIN_DOMAIN;
+  const pass = document.getElementById('agPass').value;
+  const err  = document.getElementById('authErr'); err.textContent='';
+  const { error } = await sb.auth.signInWithPassword({ email, password:pass });
+  if(error){ err.textContent = 'Anmeldung fehlgeschlagen: '+error.message; return; }
+  checkAuth();
+}
+sb.auth.onAuthStateChange(()=>checkAuth());
+checkAuth();
+
+/* ---------- Spalten-Aliase ----------
+   Links das Feld im Anmeldebogen, rechts die Überschriften, die dafür
+   durchgehen. Neue Schreibweise der MFA? Hier ein Alias ergänzen —
+   sonst muss niemand seine Liste umbauen. */
+const ALIASE = {
+  p_name:          ['name','patient','patientname','namevorname','nachnamevorname','patientin'],
+  nachname:        ['nachname','familienname'],
+  vorname:         ['vorname'],
+  p_gebdat:        ['gebdatum','geburtsdatum','gebdat','geboren','geb'],
+  p_geschlecht:    ['geschlecht','sex','m/w','mwd'],
+  p_fallnr:        ['fallnummer','fallnr','aufnahmenr','aufnahmenummer','fall'],
+  p_strasse:       ['strasse','straße','adresse','anschrift'],
+  p_ort:           ['plzort','ort','plz','wohnort'],
+  p_kasse:         ['krankenkasse','kasse','versicherung'],
+  p_versnr:        ['versichertennummer','versnr','versichertennr','kvnummer'],
+  p_kostentraeger: ['kostentraeger','kostenträger','traeger','abrechnung'],
+  diagnose:        ['diagnose','befund','indikation'],
+  icd:             ['icd','icd10','icdcode'],
+  ops_code:        ['ops','opscode','ops301'],
+  op1_text:        ['operation','eingriff','opgeplant','geplanteop','op'],
+  op2_text:        ['operation2','zweiteop','eingriff2'],
+  seite:           ['seite','lokalisation','lirebds'],
+  op_dauer:        ['dauer','dauermin','opdauer','schnittnaht'],
+  op_datum:        ['opdatum','operationsdatum','termin','optermin','datum'],
+  uhrzeit:         ['uhrzeit','zeit','beginn'],
+  dringlichkeit:   ['dringlichkeit','prioritaet','priorität','prio'],
+  notiz:           ['bemerkung','notiz','anmerkung','hinweis','kommentar']
+};
+
+const LABEL = {
+  p_name:'Name, Vorname', nachname:'Nachname (falls getrennt)', vorname:'Vorname (falls getrennt)',
+  p_gebdat:'Geb.-Datum', p_geschlecht:'Geschlecht', p_fallnr:'Fall-/Aufnahme-Nr.',
+  p_strasse:'Straße', p_ort:'PLZ / Ort', p_kasse:'Krankenkasse', p_versnr:'Vers.-Nr.',
+  p_kostentraeger:'Kostenträger', diagnose:'Diagnose', icd:'ICD-10', ops_code:'OPS-Code',
+  op1_text:'1. Operation', op2_text:'2. Operation', seite:'Seite', op_dauer:'OP-Dauer (min)',
+  op_datum:'OP-Datum', uhrzeit:'Uhrzeit', dringlichkeit:'Dringlichkeit', notiz:'Bemerkung'
+};
+
+/* Überschrift vergleichbar machen: Kleinbuchstaben, Umlaute aufgelöst,
+   alles außer a–z und 0–9 raus. "Geb.-Datum" -> "gebdatum". */
+function norm(s){
+  return String(s||'').toLowerCase()
+    .replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/ß/g,'ss')
+    .replace(/[^a-z0-9]/g,'');
+}
+
+function baueAliasTabelle(){
+  document.getElementById('aliasTbl').innerHTML = Object.keys(LABEL).map(k=>
+    `<tr><td style="color:var(--text-muted);white-space:nowrap">${LABEL[k]}</td>
+         <td><code>${ALIASE[k].join('</code> · <code>')}</code></td></tr>`).join('');
+}
+baueAliasTabelle();
+
+/* ---------- Datei einlesen ---------- */
+const drop = document.getElementById('drop');
+const fileInput = document.getElementById('file');
+drop.onclick = () => fileInput.click();
+drop.ondragover = e => { e.preventDefault(); drop.classList.add('over'); };
+drop.ondragleave = () => drop.classList.remove('over');
+drop.ondrop = e => { e.preventDefault(); drop.classList.remove('over');
+  if(e.dataTransfer.files[0]) lies(e.dataTransfer.files[0]); };
+fileInput.onchange = e => { if(e.target.files[0]) lies(e.target.files[0]); };
+
+let zeilen = [];        // aufbereitete Zeilen aus der Datei
+
+function lies(datei){
+  const reader = new FileReader();
+  reader.onload = ev => {
+    let wb;
+    try { wb = XLSX.read(new Uint8Array(ev.target.result), {type:'array', cellDates:true}); }
+    catch(err){ alert('Datei konnte nicht gelesen werden:\n'+err.message); return; }
+    const blatt = wb.Sheets[wb.SheetNames[0]];
+    const roh = XLSX.utils.sheet_to_json(blatt, {defval:'', raw:false, dateNF:'yyyy-mm-dd'});
+    if(!roh.length){ alert('Die erste Tabelle der Datei enthält keine Datenzeilen.'); return; }
+    verarbeite(roh, datei.name);
+  };
+  reader.readAsArrayBuffer(datei);
+}
+
+function verarbeite(roh, dateiname){
+  // Spalten der Datei auf Bogen-Felder abbilden
+  const spalten = Object.keys(roh[0]);
+  const map = {};                                  // feld -> Spaltenname
+  const unbekannt = [];
+  spalten.forEach(sp=>{
+    const n = norm(sp);
+    const treffer = Object.keys(ALIASE).find(f => ALIASE[f].includes(n));
+    if(treffer && !map[treffer]) map[treffer] = sp; else if(!treffer) unbekannt.push(sp);
+  });
+
+  const gefunden = Object.keys(map).filter(f=>f!=='nachname'&&f!=='vorname');
+  const hatName = map.p_name || (map.nachname && map.vorname);
+  document.getElementById('mapCard').style.display='';
+  document.getElementById('mapInfo').innerHTML =
+    (hatName ? '' : '<div class="msg err">Keine Namensspalte gefunden. Ohne <code>Name</code> (oder <code>Nachname</code> + <code>Vorname</code>) lässt sich kein Fall anlegen.</div>')
+    + `<p class="hint"><b>${dateiname}</b> · ${roh.length} Zeile${roh.length===1?'':'n'}</p>`
+    + '<table class="mapping">' + Object.keys(map).map(f=>
+        `<tr><td style="color:var(--text-muted)">${LABEL[f]||f}</td><td>←&nbsp;<code>${map[f]}</code></td></tr>`).join('')
+    + '</table>'
+    + (unbekannt.length ? `<p class="hint" style="margin-top:8px">Ignoriert: <code>${unbekannt.join('</code> <code>')}</code></p>` : '');
+  if(!hatName) return;
+
+  zeilen = roh.map((r,i)=>{
+    const v = f => map[f] ? String(r[map[f]] ?? '').trim() : '';
+    let name = v('p_name');
+    if(!name && map.nachname){
+      const nn = String(r[map.nachname]??'').trim(), vn = String(r[map.vorname]??'').trim();
+      name = nn + (vn ? ', '+vn : '');
+    }
+    return {
+      nr: i+2,                                     // Zeilennummer in Excel (1 = Überschrift)
+      p_name: name,
+      p_gebdat: alsDeutsch(v('p_gebdat')),
+      p_geschlecht: v('p_geschlecht'), p_fallnr: v('p_fallnr'),
+      p_strasse: v('p_strasse'), p_ort: v('p_ort'), p_kasse: v('p_kasse'),
+      p_versnr: v('p_versnr'), p_kostentraeger: v('p_kostentraeger'),
+      diagnose: v('diagnose'), icd: v('icd'), ops_code: v('ops_code'),
+      op1_text: v('op1_text'), op2_text: v('op2_text'), seite: v('seite'),
+      op_dauer: v('op_dauer').replace(/[^0-9]/g,''),
+      op_datum: alsISO(v('op_datum')),
+      uhrzeit: alsUhrzeit(v('uhrzeit')),
+      dringlichkeit: dringlich(v('dringlichkeit')),
+      notiz: v('notiz')
+    };
+  });
+
+  pruefeDubletten();
+}
+
+/* Datumsformate: Excel liefert je nach Zelle "2026-08-14", "14.08.2026"
+   oder einen Date-String. Zielformate: op_datum ISO (Kalender),
+   p_gebdat deutsch (so steht es im Bogen). */
+function teile(s){
+  const t = String(s||'').trim();
+  if(!t) return null;
+  let m = t.match(/^(\d{4})-(\d{2})-(\d{2})/);              if(m) return {j:m[1], m:m[2], t:m[3]};
+  m = t.match(/^(\d{1,2})[.\/](\d{1,2})[.\/](\d{2,4})/);    if(m){
+    const j = m[3].length===2 ? (+m[3] > 30 ? '19'+m[3] : '20'+m[3]) : m[3];
+    return {j, m:String(m[2]).padStart(2,'0'), t:String(m[1]).padStart(2,'0')};
+  }
+  const d = new Date(t);
+  if(!isNaN(d)) return {j:String(d.getFullYear()), m:String(d.getMonth()+1).padStart(2,'0'), t:String(d.getDate()).padStart(2,'0')};
+  return null;
+}
+const alsISO      = s => { const p=teile(s); return p ? `${p.j}-${p.m}-${p.t}` : ''; };
+const alsDeutsch  = s => { const p=teile(s); return p ? `${p.t}.${p.m}.${p.j}` : String(s||'').trim(); };
+const alsUhrzeit  = s => { const m=String(s||'').match(/(\d{1,2})[:.](\d{2})/); return m ? String(m[1]).padStart(2,'0')+':'+m[2] : ''; };
+const dringlich   = s => { const n=norm(s); return n.startsWith('not')?'Notfall' : n.startsWith('dring')?'dringlich' : 'Elektiv'; };
+
+/* ---------- Dublettenprüfung ----------
+   Erkennt denselben Fall, nicht denselben Menschen. Ein Patient, der ein
+   zweites Mal operiert wird, muss als neuer Fall durchgehen — deshalb
+   zählt zusätzlich zur Person die Fallnummer bzw. das OP-Datum. */
+let bestand = [];
+async function pruefeDubletten(){
+  const box = document.getElementById('checkMsg');
+  box.innerHTML = '<p class="hint">Prüfe gegen vorhandene Bögen …</p>';
+  /* Ohne gültige Sitzung liefert die RLS eine leere Liste statt eines Fehlers.
+     Das sähe aus wie „keine Dubletten" — deshalb hier hart abbrechen. */
+  const { data:{ session } } = await sb.auth.getSession();
+  if(!session){
+    box.innerHTML = '<div class="msg err">Nicht angemeldet — die Dublettenprüfung ist ohne Sitzung nicht aussagekräftig. Bitte anmelden und die Datei erneut wählen.</div>';
+    bestand = null; zeigeTabelle(); return;
+  }
+  const { data, error } = await sb.from('anmeldeboegen')
+    .select('id,p_name,p_gebdat,p_fallnr,op_datum,diagnose');
+  if(error){
+    box.innerHTML = '<div class="msg err">Bestand konnte nicht geladen werden ('+error.message+
+                    '). Ohne diese Prüfung könnten Fälle doppelt angelegt werden — bitte erneut versuchen.</div>';
+    bestand = null;
+  } else {
+    bestand = data || [];
+    box.innerHTML = '';
+  }
+  zeigeTabelle();
+}
+
+const personSchluessel = z => norm(z.p_name)+'|'+norm(z.p_gebdat);
+
+/* Derselbe FALL, nicht derselbe Mensch: gleiche Fallnummer, gleicher
+   OP-Termin oder — wenn beides fehlt — dieselbe Diagnose. Ein zweiter
+   Eingriff desselben Patienten unterscheidet sich in mindestens einem
+   dieser Punkte und gilt damit als eigener Fall. */
+function sameFall(a, z){
+  if(z.p_fallnr && norm(a.p_fallnr) === norm(z.p_fallnr)) return true;
+  if(z.op_datum && a.op_datum === z.op_datum) return true;
+  if(!z.p_fallnr && !z.op_datum && !a.p_fallnr && !a.op_datum
+     && norm(a.diagnose) === norm(z.diagnose)) return true;
+  return false;
+}
+
+/* Bewertet Zeile z; frueher = die Zeilen darüber in derselben Datei.
+   Zwei Quellen von Dubletten: die Datenbank und die Liste selbst — eine
+   versehentlich zweimal eingetragene Zeile darf nicht zwei Fälle erzeugen. */
+function bewerte(z, frueher){
+  if(!z.p_name) return {art:'fehler', text:'ohne Namen', hinweis:'Zeile hat keinen Patientennamen'};
+
+  const dopplung = (frueher||[]).find(a => personSchluessel(a) === personSchluessel(z) && sameFall(a, z));
+  if(dopplung)
+    return {art:'dublette', text:'doppelt in der Liste',
+            hinweis:'Steht schon in Zeile '+dopplung.nr+' derselben Datei — Haken nur setzen, wenn es wirklich zwei Fälle sind'};
+
+  if(bestand === null) return {art:'neu', text:'ungeprüft', hinweis:'Bestand nicht geladen'};
+  const person = bestand.filter(b => personSchluessel(b) === personSchluessel(z));
+  if(!person.length) return {art:'neu', text:'neu', hinweis:''};
+
+  const gleicherFall = person.find(b => sameFall(b, z));
+  if(gleicherFall)
+    return {art:'dublette', text:'mögliche Dublette',
+            hinweis:'Für diesen Patienten existiert bereits ein Bogen mit '+
+                    (z.p_fallnr && norm(gleicherFall.p_fallnr)===norm(z.p_fallnr) ? 'derselben Fall-Nr.'
+                     : z.op_datum ? 'demselben OP-Datum' : 'derselben Diagnose')+
+                    ' — Haken nur setzen, wenn es wirklich ein zweiter Fall ist'};
+  return {art:'wieder', text:'Patient bekannt · neuer Fall',
+          hinweis:'Patient hat bereits '+person.length+' Bogen/Bögen — dieser Fall unterscheidet sich und wird zusätzlich angelegt'};
+}
+
+function zeigeTabelle(){
+  document.getElementById('previewCard').style.display='';
+  document.getElementById('tbody').innerHTML = zeilen.map((z,i)=>{
+    const b = bewerte(z, zeilen.slice(0,i));
+    z._bewertung = b;
+    const an = (b.art==='neu' || b.art==='wieder');
+    const cls = {neu:'t-neu', wieder:'t-wieder', dublette:'t-dub', fehler:'t-fehler'}[b.art];
+    return `<tr class="${an?'':'skip'}" title="${b.hinweis.replace(/"/g,'&quot;')}">
+      <td><input type="checkbox" class="zeile" data-i="${i}" ${an?'checked':''} ${b.art==='fehler'?'disabled':''} onchange="zaehle()"></td>
+      <td><span class="tag ${cls}">${b.text}</span>${
+          !z.op_datum && b.art!=='fehler' ? ' <span class="tag t-wl">Warteliste</span>' : ''}</td>
+      <td><b>${esc(z.p_name)||'<i>—</i>'}</b></td>
+      <td>${esc(z.p_gebdat)}</td>
+      <td>${esc(z.p_fallnr)}</td>
+      <td style="white-space:nowrap">${z.op_datum ? esc(alsDeutsch(z.op_datum))+(z.uhrzeit?' '+esc(z.uhrzeit):'') : '<span style="color:var(--text-faint)">kein Termin</span>'}</td>
+      <td>${esc(z.diagnose)}</td>
+      <td>${esc(z.op1_text)}</td>
+    </tr>`;
+  }).join('');
+  zaehle();
+}
+
+const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+
+function alleUm(an){
+  document.querySelectorAll('.zeile:not(:disabled)').forEach(c=>c.checked=an);
+  zaehle();
+}
+function gewaehlt(){
+  return [...document.querySelectorAll('.zeile:checked')].map(c=>zeilen[+c.dataset.i]);
+}
+function zaehle(){
+  const w = gewaehlt();
+  const ohneTermin = w.filter(z=>!z.op_datum).length;
+  document.getElementById('selInfo').textContent =
+    w.length ? `${w.length} ausgewählt` + (ohneTermin ? ` · davon ${ohneTermin} ohne Termin → Warteliste` : '')
+             : 'nichts ausgewählt';
+  document.getElementById('btnGo').disabled = !w.length;
+}
+
+/* ---------- Übernehmen ----------
+   Pro Zeile: Bogen (neue ID) + verknüpfter OP-Plan-Eintrag.
+   Fehler bei einer Zeile brechen den Rest nicht ab — am Ende steht ein
+   Protokoll, damit nachvollziehbar ist, was angelegt wurde. */
+async function uebernehmen(){
+  if(!darfSchreiben()){ alert('Nur-Lese-Zugriff.'); return; }
+  const w = gewaehlt();
+  if(!w.length) return;
+  const dubletten = w.filter(z=>z._bewertung.art==='dublette').length;
+  if(!confirm(`${w.length} Fall/Fälle werden neu angelegt.`
+      + (dubletten ? `\n\nDarunter ${dubletten} als mögliche Dublette markierte — sie werden ZUSÄTZLICH angelegt, nichts wird überschrieben.` : '')
+      + '\n\nFortfahren?')) return;
+
+  document.getElementById('btnGo').disabled = true;
+  const heute = new Date().toISOString().slice(0,10);
+  const log = [];
+
+  for(const z of w){
+    const id = 'AB' + Date.now() + Math.random().toString(36).slice(2,6);
+    const bogen = {
+      id, standort:'traunstein',
+      p_name:z.p_name, p_gebdat:z.p_gebdat, p_geschlecht:z.p_geschlecht, p_fallnr:z.p_fallnr,
+      p_strasse:z.p_strasse, p_ort:z.p_ort, p_kasse:z.p_kasse, p_versnr:z.p_versnr,
+      p_kostentraeger:z.p_kostentraeger,
+      dringlichkeit:z.dringlichkeit, diagnose:z.diagnose, icd:z.icd, ops_code:z.ops_code,
+      op1_text:z.op1_text, op2_text:z.op2_text, seite:z.seite, op_dauer:z.op_dauer,
+      op_datum:z.op_datum, uhrzeit:z.uhrzeit,
+      notiz:[z.notiz, 'Aus Listenimport '+heute+' (Zeile '+z.nr+') — Bogen noch unvollständig'].filter(Boolean).join(' · '),
+      erstellt: heute
+    };
+    const { error:e1 } = await sb.from('anmeldeboegen').insert(bogen);
+    if(e1){ log.push({z, ok:false, txt:'Bogen nicht angelegt: '+e1.message}); continue; }
+
+    const op = {
+      id:'op_'+id, bogen_id:id,
+      datum:z.op_datum || '', uhrzeit:z.uhrzeit || (z.op_datum ? '08:00' : ''),
+      patient: z.p_name + (z.p_gebdat ? ' ('+z.p_gebdat+')' : ''),
+      diagnose:z.diagnose, icd:z.icd, ops_code:z.ops_code,
+      prozedur:[z.op1_text,z.op2_text].filter(Boolean).join(' + '),
+      seite:z.seite, dauer:z.op_dauer, implantate:'',
+      prioritaet:(z.dringlichkeit||'Elektiv').toLowerCase(),
+      status:'geplant', saal:'', anaesthesie:'', op1:'Dr. Mosafer', op2:'',
+      monitoring:'', notiz:'Aus Listenimport '+heute
+    };
+    const { error:e2 } = await sb.from('op_eingriffe').insert(op);
+    if(e2){ log.push({z, ok:false, txt:'Bogen angelegt, aber OP-Plan-Eintrag nicht: '+e2.message}); continue; }
+
+    log.push({z, ok:true, txt: z.op_datum ? 'angelegt · Termin '+z.op_datum : 'angelegt · Warteliste (kein Termin)'});
+  }
+
+  const ok = log.filter(l=>l.ok).length, fehler = log.length-ok;
+  const wl = log.filter(l=>l.ok && !l.z.op_datum).length;
+  document.getElementById('resultCard').style.display='';
+  document.getElementById('result').innerHTML =
+    `<div class="msg ${fehler?'warn':'ok'}">
+       <b>${ok} von ${log.length} übernommen.</b>
+       ${wl?` ${wl} davon ohne Termin → stehen in der Warteliste.`:''}
+       ${fehler?` ${fehler} fehlgeschlagen (siehe unten).`:''}
+     </div>
+     <table class="mapping">${log.map(l=>
+       `<tr><td>${l.ok?'✓':'✗'}</td><td><b>${esc(l.z.p_name)}</b></td>
+            <td style="color:var(--text-muted)">${esc(l.txt)}</td></tr>`).join('')}</table>
+     <p class="hint" style="margin-top:12px">
+       Die Bögen enthalten bisher nur die Stammdaten aus der Liste. Lagerung, IONM, Antibiose,
+       Blut und Medikamente ergänzt du im jeweiligen Bogen — erreichbar über den Fall im OP-Plan.
+     </p>
+     <div style="margin-top:12px;display:flex;gap:10px">
+       <button class="btn" onclick="location.href='index.html'">Zum OP-Plan</button>
+       <button class="btn ghost" onclick="location.reload()">Weitere Liste importieren</button>
+     </div>`;
+  document.getElementById('previewCard').style.display='none';
+  document.getElementById('resultCard').scrollIntoView({behavior:'smooth'});
+}
+</script>
+</body>
+</html>
