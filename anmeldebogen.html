@@ -206,6 +206,11 @@ select.fill{border:none;border-bottom:1px solid var(--border-strong);background:
       <div class="field"><label>Vers.-Nr.</label><input class="fill" id="p_versnr" placeholder="Versichertennummer"></div>
       <div class="field"><label>Kostenträger</label><input class="fill" id="p_kostentraeger" placeholder="ALLG. / BG / privat"></div>
       <div class="field"><label>Behandlungskat.</label><input class="fill" id="p_bkat" placeholder="z. B. Allg. BGP"></div>
+      <!-- Tel. Patient stand früher im ZBM-Kasten. Auf Wunsch des ZBM (07/2026)
+           hier hoch: Bei Patienten aus der Praxis-Sprechstunde liegt im KIS kein
+           aktueller Datensatz, das ZBM kann die Nummer also nicht selbst ermitteln.
+           Bewusst dieselbe Spalte tel_pat — kein zweites Feld, keine Doppelerfassung. -->
+      <div class="field"><label>Tel. Patient</label><input class="fill" id="z_tel_pat" type="tel" placeholder="Telefon / Mobil"></div>
     </div>
     <div class="sep"></div>
     <div class="inline-cbx">
@@ -267,6 +272,13 @@ select.fill{border:none;border-bottom:1px solid var(--border-strong);background:
       <label class="cbx"><input type="checkbox" id="b_ery"><span class="mark"></span>EK bereitstellen</label>
       <label class="cbx"><input type="checkbox" id="b_cellsaver"><span class="mark"></span>Cell-Saver</label>
       <label class="cbx"><input type="checkbox" id="f_icu"><span class="mark"></span>ICU post OP</label>
+    </div>
+    <!-- Labor: auf Wunsch des ZBM (07/2026). Ein Kästchen genügt — ein Labor ohne
+         CRP wird hier nie angefordert. Zusätzliche Parameter als Freitext. -->
+    <div class="inline-cbx" style="margin-top:4px">
+      <span class="tag">Labor:</span>
+      <label class="cbx"><input type="checkbox" id="lab_standard"><span class="mark"></span>Standardlabor inkl. CRP</label>
+      <div class="field" style="flex:1;min-width:200px"><label>erweiterte Parameter</label><input class="fill" id="lab_zusatz" placeholder="z. B. Quick/INR, TSH, HbA1c"></div>
     </div>
   </div>
 
@@ -474,7 +486,6 @@ select.fill{border:none;border-bottom:1px solid var(--border-strong);background:
       <div class="field"><label>OPV</label><input class="fill" id="z_opv"></div>
       <div class="field"><label>OPV Anästhesie</label><input class="fill" id="z_opv_anae"></div>
       <div class="field"><label>OP am</label><input class="fill" id="z_op_am" type="date"></div>
-      <div class="field"><label>Tel. Patient</label><input class="fill" id="z_tel_pat"></div>
       <div class="field"><label>Tel. Angehörige</label><input class="fill" id="z_tel_angeh"></div>
       <div class="field"><label>Betreuer</label><input class="fill" id="z_betreuer"></div>
     </div>
@@ -613,6 +624,11 @@ function diagnostikText(){
   return t.join(', ');
 }
 
+/* Labor-Kürzel für Mail und OP-Plan-Notiz */
+function laborText(){
+  return [gc('lab_standard') ? 'Standard inkl. CRP' : '', g('lab_zusatz')].filter(Boolean).join(' + ');
+}
+
 /* Gerinnungs-/Absetz-Kürzel für die OP-Plan-Notiz */
 function absetzenText(){
   if(gc('m_keine')) return 'Keine Medikamente';
@@ -653,6 +669,7 @@ function collect(){
     op_datum:g('f_opdatum'), uhrzeit:g('f_uhrzeit'),
     blut_blutgruppe:gc('b_blutgruppe'), blut_ek:gc('b_ery'), blut_cellsaver:gc('b_cellsaver'),
     icu_postop:gc('f_icu'),
+    lab_standard:gc('lab_standard'), lab_zusatz:g('lab_zusatz'),
     // Aufnahme & Planung
     aufnahmemodus:radio('aufn'), aoz_moeglich:gc('f_aoz'),
     op_innerhalb_wert:g('f_innerhalb'), op_innerhalb_einheit:g('f_innerhalb_einheit'),
@@ -711,6 +728,7 @@ function apply(b){
   setV('f_opdatum',b.op_datum); setV('f_uhrzeit',b.uhrzeit);
   setC('b_blutgruppe',b.blut_blutgruppe); setC('b_ery',b.blut_ek); setC('b_cellsaver',b.blut_cellsaver);
   setC('f_icu',b.icu_postop);
+  setC('lab_standard',b.lab_standard); setV('lab_zusatz',b.lab_zusatz);
   setR('aufn',b.aufnahmemodus); setC('f_aoz',b.aoz_moeglich);
   setV('f_innerhalb',b.op_innerhalb_wert); setV('f_innerhalb_einheit',b.op_innerhalb_einheit);
   setV('f_nichtvor',b.nicht_vor_tagen); setR('aufnzeit',b.aufnahme_zeitpunkt);
@@ -796,6 +814,7 @@ async function persist(){
 
   // 2) OP-Plan-Eintrag -> op_eingriffe (via bogen_id fest verknüpft)
   const notizTeile = [absetzenText(), diagnostikText()? 'Diagnostik: '+diagnostikText():'',
+                      laborText()? 'Labor: '+laborText():'',
                       bogen.allergien? 'Allergien: '+bogen.allergien:'',
                       bogen.icu_postop? 'ICU postop':'',
                       bogen.verweildauer_tage? 'Verweildauer ca. '+bogen.verweildauer_tage+'d':'',
@@ -898,6 +917,7 @@ function mailOeffnen(){
   if(b.verweildauer_tage) L.push('Verweildauer: ca. '+b.verweildauer_tage+' Tage');
   if(b.reha_art) L.push('Reha: '+b.reha_art+(b.reha_wunschklinik?' · '+b.reha_wunschklinik:''));
   const dg=diagnostikText(); if(dg) L.push('Diagnostik: '+dg);
+  const lab=laborText();     if(lab) L.push('Labor: '+lab);
   const ab=absetzenText();   if(ab) L.push(ab);
   if(b.allergien) L.push('Allergien: '+b.allergien);
   if(b.notiz) L.push('Bemerkung: '+b.notiz);
