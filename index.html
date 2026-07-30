@@ -240,6 +240,8 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .dp-doc-meta{display:block;font-size:10.5px;color:var(--text-faint);margin-top:1px}
 .dp-doc.none{border-style:dashed}
 .dp-doc.none .dp-doc-name{color:var(--text-faint);font-weight:500}
+.dp-doc.warn{border-color:var(--amber);background:var(--amber-bg)}
+.dp-doc.warn .dp-doc-name{color:var(--amber)}
 .dp-badge{display:inline-block;padding:3px 10px;border-radius:100px;font-size:11px;font-weight:600}
 .dp-actions{padding:1rem 1.2rem;border-top:1px solid var(--border);display:flex;gap:8px}
 .dp-btn{flex:1;padding:8px;font-size:12px;border-radius:var(--radius-sm);cursor:pointer;font-weight:500;text-align:center}
@@ -1295,12 +1297,26 @@ async function zeigeBogen(op){
       <span><span class="dp-doc-name">Kein Anmeldebogen hinterlegt</span>
       <span class="dp-doc-meta">Anlegen und mit diesem Fall verknüpfen</span></span></a></div>`;
 
-  if(!bid || !sb){ el.innerHTML = anlegen; return; }
+  // Kein Link am Fall -> es gibt wirklich keinen Bogen: „Anlegen" anbieten.
+  if(!bid){ el.innerHTML = anlegen; return; }
+
+  /* Ab hier IST ein Bogen verknüpft (bogen_id). Eine gescheiterte Abfrage
+     (abgelaufene Session / RLS / Netz) darf NICHT als „kein Bogen" erscheinen –
+     sonst wirkt ein vorhandener Bogen wie gelöscht und der Nutzer legt versehentlich
+     einen zweiten an. Fehler und „Zeile fehlt" bekommen eigene, ehrliche Zustände;
+     der Link zeigt in beiden Fällen auf ?id=<bid> als Wiederherstellungs-/Prüfpfad. */
+  const warnBox = (name, meta) => `<div class="dp-doc warn"><a href="anmeldebogen.html?id=${encodeURIComponent(bid)}" title="Verknüpften Anmeldebogen öffnen/prüfen">
+      <span class="dp-doc-ico">⚠</span>
+      <span><span class="dp-doc-name">${name}</span>
+      <span class="dp-doc-meta">${meta}</span></span></a></div>`;
+
+  if(!sb){ el.innerHTML = warnBox('Bogen verknüpft – Verbindung fehlt', 'Seite neu laden. Der Bogen ist nicht gelöscht.'); return; }
 
   const { data, error } = await sb.from('anmeldeboegen')
     .select('id,p_name,standort,erstellt,updated_at').eq('id', bid).maybeSingle();
   if(detailId !== openId) return;               // Nutzer hat inzwischen einen anderen Fall geöffnet
-  if(error || !data){ el.innerHTML = anlegen; return; }
+  if(error){ el.innerHTML = warnBox('Bogen verknüpft – nicht ladbar', 'Sitzung abgelaufen oder kein Zugriff. Neu einloggen und Seite neu laden – der Bogen ist nicht gelöscht.'); return; }
+  if(!data){ el.innerHTML = warnBox('Verknüpfter Bogen nicht gefunden', 'Fall verweist auf Bogen '+bid+', der nicht (mehr) existiert.'); return; }
 
   const ort = data.standort==='rosenheim' ? 'Praxis Rosenheim' : 'Traunstein';
   const stand = (data.updated_at||'').slice(0,10) || data.erstellt || '';
