@@ -825,19 +825,41 @@ async function persist(){
      Sekretariat gepflegt — die darf ein erneutes Speichern des Bogens NICHT
      zurücksetzen. Früher schrieb persist() sie hart auf '' bzw. 'geplant';
      ein bestätigter Fall mit Saal fiel damit auf „geplant, kein Saal" zurück. */
-  const vorhanden = (await sb.from('op_eingriffe').select('*')
+  let vorhanden = (await sb.from('op_eingriffe').select('*')
                        .eq('bogen_id', bogen.id).maybeSingle()).data
                  || (await sb.from('op_eingriffe').select('*')
                        .eq('id','op_'+bogen.id).maybeSingle()).data
                  || null;
 
+  /* Dubletten-Schutz: Steht am selben Tag bereits ein Kalender-Fall zur selben
+     Person OHNE Bogen (z. B. direkt bestätigter Termin oder Altbestand), wird er
+     ADOPTIERT statt ein zweiter Eintrag angelegt. Sonst entsteht die Dublette
+     „Kalendereintrag (bestätigt, ohne Bogen) + Bogen-Eintrag (geplant)".
+     Abgleich über Datum + Name + Geburtsdatum (normalisiert, tolerant gegen
+     Label-Varianten wie „Name (GebDat)" vs. „Name geb am GebDat").
+     WICHTIG: Geburtsdatum ist PFLICHT für die Adoption. Ohne GebDat würde ein
+     reiner Namens-Substring fälschlich adoptieren können („Bauer, Anna" ⊂
+     „Bauer, Annabel"). Fehlt das GebDat, lieber KEINE Adoption (harmlose Dublette)
+     als eine falsche Patientenverknüpfung. */
+  let adoptiert = false;
+  if(!vorhanden && bogen.op_datum && bogen.p_name && bogen.p_gebdat){
+    const { data: kand } = await sb.from('op_eingriffe').select('*').eq('datum', bogen.op_datum);
+    const norm = s => (s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+    const nName = norm(bogen.p_name), nGeb = norm(bogen.p_gebdat);
+    vorhanden = (nName && nGeb ? (kand||[]).find(o => !o.bogen_id
+                  && norm(o.patient).includes(nName)
+                  && norm(o.patient).includes(nGeb)) : null) || null;
+    adoptiert = !!vorhanden;
+  }
+
   const op = {
     ...(vorhanden || {}),                       // Kalender-eigene Felder erhalten
     id: vorhanden ? vorhanden.id : 'op_'+bogen.id,
     bogen_id: bogen.id,
-    // Datum/Uhrzeit: Bogen gewinnt, solange er gefüllt ist; sonst Kalenderstand halten
-    datum: bogen.op_datum || (vorhanden && vorhanden.datum) || bogen.erstellt || '',
-    uhrzeit: bogen.uhrzeit || (vorhanden && vorhanden.uhrzeit) || '08:00',
+    // Datum/Uhrzeit: beim Adoptieren gewinnt der bereits terminierte Kalenderstand
+    // (der bestätigte Slot), sonst der Bogen, solange er gefüllt ist.
+    datum: adoptiert ? (vorhanden.datum || bogen.op_datum) : (bogen.op_datum || (vorhanden && vorhanden.datum) || bogen.erstellt || ''),
+    uhrzeit: adoptiert ? (vorhanden.uhrzeit || bogen.uhrzeit || '08:00') : (bogen.uhrzeit || (vorhanden && vorhanden.uhrzeit) || '08:00'),
     // Felder, die dem Bogen gehören
     patient: opPatientLabel(),
     diagnose: bogen.diagnose,
@@ -858,8 +880,15 @@ async function persist(){
   if(op.datum){
     const { error:e2 } = await sb.from('op_eingriffe').upsert(op);
     if(e2) opMsg = '\n\n⚠ OP-Plan-Eintrag nicht angelegt: '+e2.message;
-    else   opMsg = '\n\nOP-Plan-Eintrag „'+op.patient+'" für '+op.datum
-                 + (vorhanden ? ' aktualisiert.' : ' angelegt.');
+    else {
+      // Beim Adoptieren gewinnt der Kalender-Slot -> Bogen (PDF) darauf angleichen,
+      // damit Termin auf Bogen und Kalender nicht auseinanderlaufen.
+      if(adoptiert && (bogen.op_datum!==op.datum || bogen.uhrzeit!==op.uhrzeit)){
+        await sb.from('anmeldeboegen').update({op_datum:op.datum, uhrzeit:op.uhrzeit}).eq('id', bogen.id);
+      }
+      opMsg = '\n\nOP-Plan-Eintrag „'+op.patient+'" für '+op.datum
+            + (adoptiert ? ' mit bestehendem Termin verknüpft.' : (vorhanden ? ' aktualisiert.' : ' angelegt.'));
+    }
   } else {
     opMsg = '\n\nHinweis: Kein OP-Datum → noch kein Eintrag im OP-Plan-Kalender.';
   }
