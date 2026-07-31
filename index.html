@@ -71,6 +71,8 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .nav-btn:hover{background:var(--bg)}
 .period-label{font-size:14px;font-weight:600;min-width:200px;text-align:center;color:var(--navy)}
 .filter-select{padding:5px 10px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);cursor:pointer}
+.ob-filter{padding:5px 10px;font-size:12px;border:1px solid var(--amber-chip);border-radius:var(--radius-sm);background:var(--amber-bg);color:var(--amber);cursor:pointer;font-weight:600;white-space:nowrap}
+.ob-filter.active{background:var(--amber);color:#fff;border-color:var(--amber)}
 .search-input{padding:5px 10px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);width:180px}
 .search-input:focus{outline:none;border-color:var(--navy)}
 .abw-toggle{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text-muted);cursor:pointer;user-select:none;white-space:nowrap}
@@ -115,6 +117,9 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .s-fertig{background:var(--gray-chip);color:var(--gray)}
 .s-abgesagt{background:var(--red-chip);color:var(--red)}
 .s-dringlich{background:var(--amber-chip);color:var(--amber)}
+/* Fall ohne hinterlegten Anmeldebogen: amberfarbener Innenring (kein Layout-Shift,
+   überschreibt die Status-Hintergrundfarbe nicht) zusätzlich zum ⚠ vor dem Namen. */
+.chip.ohne-bogen,.week-chip.ohne-bogen{box-shadow:inset 0 0 0 1.5px var(--amber)}
 .more{font-size:11px;color:var(--text-faint);padding:1px 3px}
 
 /* ABWESENHEITS-BÄNDER (Monat) — schmal, über den OP-Chips, damit sie das
@@ -339,6 +344,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
     <option>Saal 3</option>
     <option>Tagesklinik</option>
   </select>
+  <button class="ob-filter" id="btnOhneBogen" style="display:none" onclick="toggleOhneBogen()" title="Nur Fälle ohne hinterlegten Anmeldebogen anzeigen">⚠ <span id="obCount">0</span> ohne Bogen</button>
   <label class="abw-toggle" title="Urlaub / Fortbildung / Krank im Kalender anzeigen">
     <input type="checkbox" id="toggleAbw" checked onchange="toggleAbwesenheiten()"> Abwesenheiten
   </label>
@@ -872,11 +878,21 @@ function navBack(){ if(viewMode==='monat'){curMonth--;if(curMonth<0){curMonth=11
 function navFwd(){  if(viewMode==='monat'){curMonth++;if(curMonth>11){curMonth=0;curYear++;}}else{curWeekStart=new Date(curWeekStart.getTime()+7*86400000);}render(); }
 function goToday(){ const n=new Date();curYear=n.getFullYear();curMonth=n.getMonth();curWeekStart=getWeekStart(n);render(); }
 
+/* Fall mit Handlungsbedarf „Bogen fehlt": geplant/bestätigt, aber kein
+   Anmeldebogen verknüpft. Abgesagte/durchgeführte werden bewusst NICHT markiert. */
+function ohneBogen(op){
+  return !bogenIdOf(op) && (op.status==='geplant' || op.status==='bestaetigt');
+}
+
+let nurOhneBogen = false;
+function toggleOhneBogen(){ nurOhneBogen = !nurOhneBogen; render(); }
+
 function filteredOps(){
   const q = document.getElementById('searchInput').value.toLowerCase();
   const fs = document.getElementById('filterStatus').value;
   const fsal = document.getElementById('filterSaal').value;
   return ops.filter(o=>{
+    if(nurOhneBogen && !ohneBogen(o)) return false;
     if(fs && o.status!==fs) return false;
     if(fsal && o.saal!==fsal) return false;
     if(q){
@@ -887,9 +903,22 @@ function filteredOps(){
   });
 }
 
+/* Zähler + Sichtbarkeit des Toolbar-Filters „⚠ ohne Bogen". Gezählt werden
+   terminierte Kalenderfälle (mit Datum) ohne Bogen; ist keiner da und der Filter
+   nicht aktiv, bleibt der Button verborgen. */
+function renderObCount(){
+  const btn = document.getElementById('btnOhneBogen');
+  if(!btn) return;
+  const n = ops.filter(o => o.datum && ohneBogen(o)).length;
+  const span = document.getElementById('obCount'); if(span) span.textContent = n;
+  btn.classList.toggle('active', nurOhneBogen);
+  btn.style.display = (n===0 && !nurOhneBogen) ? 'none' : '';
+}
+
 function render(){
   renderStats();
   renderWlCount();
+  renderObCount();
   if(viewMode==='monat') renderMonth();
   else if(viewMode==='warteliste') renderWarteliste();
   else renderWeek();
@@ -1046,8 +1075,9 @@ function renderMonth(){
       const timeStr=op.uhrzeit?`<span class="chip-time">${op.uhrzeit}</span> `:'';
       const pat=op.patient||'—';
       const proc=op.prozedur||op.diagnose||'OP';
-      chipsHTML+=`<button class="chip ${chipClass(op)}" draggable="true" data-op-id="${op.id}" ondragstart="dragStartMonth(event,'${op.id}')" ondragend="dragEnd(event)" onclick="event.stopPropagation();showDetail('${op.id}')" title="${op.patient||''} · ${op.diagnose||''} – ${op.prozedur||''}">
-        <div class="chip-pat">${prio}${pat}</div>
+      const ob=ohneBogen(op);
+      chipsHTML+=`<button class="chip ${chipClass(op)}${ob?' ohne-bogen':''}" draggable="true" data-op-id="${op.id}" ondragstart="dragStartMonth(event,'${op.id}')" ondragend="dragEnd(event)" onclick="event.stopPropagation();showDetail('${op.id}')" title="${op.patient||''} · ${op.diagnose||''} – ${op.prozedur||''}${ob?' · ⚠ kein Anmeldebogen':''}">
+        <div class="chip-pat">${prio}${ob?'⚠ ':''}${pat}</div>
         <div class="chip-proc">${timeStr}${proc}</div>
       </button>`;
     });
@@ -1105,8 +1135,9 @@ function renderWeek(){
       const h=Math.max(dur*(60/60),28);
       const bg=chipBg(op), cl=chipColor(op);
       const prio=op.prioritaet==='notfall'?'🔴 ':op.prioritaet==='dringlich'?'🟠 ':'';
-      chipsHTML+=`<button class="week-chip ${chipClass(op)}" draggable="true" data-op-id="${op.id}" ondragstart="dragStartWeek(event,'${op.id}')" ondragend="dragEnd(event)" style="top:${startPx}px;height:${h}px;background:${bg};color:${cl}" onclick="event.stopPropagation();showDetail('${op.id}')" title="${op.patient||''} · ${op.diagnose||''} – ${op.prozedur||''}">
-        <div class="wc-pat">${prio}${op.patient||'—'}</div>
+      const ob=ohneBogen(op);
+      chipsHTML+=`<button class="week-chip ${chipClass(op)}${ob?' ohne-bogen':''}" draggable="true" data-op-id="${op.id}" ondragstart="dragStartWeek(event,'${op.id}')" ondragend="dragEnd(event)" style="top:${startPx}px;height:${h}px;background:${bg};color:${cl}" onclick="event.stopPropagation();showDetail('${op.id}')" title="${op.patient||''} · ${op.diagnose||''} – ${op.prozedur||''}${ob?' · ⚠ kein Anmeldebogen':''}">
+        <div class="wc-pat">${prio}${ob?'⚠ ':''}${op.patient||'—'}</div>
         <div class="wc-proc">${op.prozedur||op.diagnose||'OP'}</div>
         <div class="wc-dur">${op.uhrzeit||''} · ${op.dauer||'?'}min</div>
       </button>`;
