@@ -640,10 +640,26 @@ async function signIn() {
   btn.textContent = 'Anmelden…';
   btn.disabled = true;
   errEl.style.display = 'none';
-  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  let data, error;
+  try {
+    ({ data, error } = await sb.auth.signInWithPassword({ email, password }));
+  } catch (networkErr) {
+    btn.textContent = 'Anmelden';
+    btn.disabled = false;
+    showLoginError('Verbindung zum Server fehlgeschlagen (kein Netzwerkzugriff auf Supabase). Evtl. blockiert eine Firewall/ein Proxy die Verbindung. Technischer Fehler: ' + (networkErr && networkErr.message ? networkErr.message : networkErr));
+    return;
+  }
   btn.textContent = 'Anmelden';
   btn.disabled = false;
-  if (error) { showLoginError('Falsche E-Mail oder Passwort.'); return; }
+  if (error) {
+    const isAuthError = error.status === 400 || error.status === 422 || /invalid login credentials/i.test(error.message || '');
+    if (isAuthError) {
+      showLoginError('Falsche E-Mail oder Passwort.');
+    } else {
+      showLoginError('Verbindung zum Server fehlgeschlagen (kein Netzwerkzugriff auf Supabase). Evtl. blockiert eine Firewall/ein Proxy die Verbindung. Technischer Fehler: ' + error.message);
+    }
+    return;
+  }
   showApp(data.user);
   init();
 }
