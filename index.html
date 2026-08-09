@@ -102,7 +102,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .cell.today .dn{background:var(--gold);color:var(--navy);border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-weight:700}
 .cell.weekend .dn{color:var(--text-faint)}
 .dn{font-size:12px;font-weight:500;color:var(--text-muted);margin-bottom:4px;display:inline-block;width:22px;height:22px;line-height:22px;text-align:center}
-.chip{padding:4px 7px;border-radius:4px;margin-bottom:3px;overflow:hidden;cursor:grab;display:block;border:none;width:100%;text-align:left;line-height:1.25;user-select:none}
+.chip{position:relative;padding:4px 7px;border-radius:4px;margin-bottom:3px;overflow:hidden;cursor:grab;display:block;border:none;width:100%;text-align:left;line-height:1.25;user-select:none}
 .chip:active{cursor:grabbing}
 .chip:hover{filter:brightness(0.92)}
 .chip.dragging{opacity:0.4}
@@ -120,6 +120,12 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 /* Fall ohne hinterlegten Anmeldebogen: amberfarbener Innenring (kein Layout-Shift,
    überschreibt die Status-Hintergrundfarbe nicht) zusätzlich zum ⚠ vor dem Namen. */
 .chip.ohne-bogen,.week-chip.ohne-bogen{box-shadow:inset 0 0 0 1.5px var(--amber)}
+/* Anmeldebogen versendet: navyfarbenes Badge oben rechts am Chip. Eigenständige
+   Farbe (nicht Grün) bewusst gewählt — der "bestätigt"-Status ist selbst grün
+   (--green-chip), ein grünes Badge würde dort untergehen. Position innerhalb
+   der Chip-Grenzen (nicht negativ), weil .chip/.week-chip overflow:hidden haben. */
+.bogen-versendet-badge{position:absolute;top:2px;right:2px;width:13px;height:13px;border-radius:50%;background:var(--navy);display:flex;align-items:center;justify-content:center;box-shadow:0 1px 2px rgba(0,0,0,.3);pointer-events:none}
+.bogen-versendet-badge svg{width:8px;height:8px;display:block}
 .more{font-size:11px;color:var(--text-faint);padding:1px 3px}
 
 /* ABWESENHEITS-BÄNDER (Monat) — schmal, über den OP-Chips, damit sie das
@@ -246,6 +252,10 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .dp-doc.none{border-style:dashed}
 .dp-doc.none .dp-doc-name{color:var(--text-faint);font-weight:500}
 .dp-doc.warn{border-color:var(--amber);background:var(--amber-bg)}
+.dp-versand{margin-top:6px;padding:8px 12px;border-radius:8px;font-size:11.5px;display:flex;align-items:center;gap:8px}
+.dp-versand.ja{background:var(--navy);color:#fff}
+.dp-versand.ja svg{width:11px;height:11px;flex-shrink:0}
+.dp-versand.nein{background:var(--bg);border:1px solid var(--border);color:var(--text-faint)}
 .dp-doc.warn .dp-doc-name{color:var(--amber)}
 .dp-badge{display:inline-block;padding:3px 10px;border-radius:100px;font-size:11px;font-weight:600}
 .dp-actions{padding:1rem 1.2rem;border-top:1px solid var(--border);display:flex;gap:8px}
@@ -884,6 +894,16 @@ function ohneBogen(op){
   return !bogenIdOf(op) && (op.status==='geplant' || op.status==='bestaetigt');
 }
 
+/* Gegenstück: Anmeldebogen wurde ans ZBM versendet (Mail-Entwurf geöffnet).
+   Reine Anzeige, kein Handlungsbedarf — deshalb kein eigener Filter, nur ein
+   Badge am Chip. Setzt zwingend bogen_id voraus (wird erst nach persist()
+   geschrieben), schließt sich mit ohneBogen() also gegenseitig aus. */
+function bogenVersendet(op){
+  return !!op.bogen_versendet_am;
+}
+const BOGEN_VERSENDET_SVG = '<svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2z" fill="#fff"/></svg>';
+const bogenVersendetBadge = () => `<span class="bogen-versendet-badge" title="Anmeldebogen versendet">${BOGEN_VERSENDET_SVG}</span>`;
+
 let nurOhneBogen = false;
 function toggleOhneBogen(){ nurOhneBogen = !nurOhneBogen; render(); }
 
@@ -1033,9 +1053,15 @@ function renderStats(){
   `;
 }
 
+/* Status-Werte kommen normalerweise nur aus den UI-Buttons/Dropdowns, aber der
+   CSV-Import (import.html) validiert nicht zwingend gegen die vier bekannten
+   Werte. Whitelist statt roher String-Konkatenation — sonst könnte ein
+   manipulierter Status-Wert aus dem class="..."-Attribut ausbrechen (op.status
+   landet unescaped in einem HTML-Attribut, nicht nur als Text). */
+const STATUS_KLASSEN = ['geplant','bestaetigt','fertig','abgesagt'];
 function chipClass(op){
   if(op.prioritaet==='notfall'||op.prioritaet==='dringlich') return 's-dringlich';
-  return 's-'+op.status;
+  return 's-'+(STATUS_KLASSEN.includes(op.status) ? op.status : 'geplant');
 }
 
 function renderMonth(){
@@ -1072,11 +1098,14 @@ function renderMonth(){
     let chipsHTML=abwAmTag(dateStr).map(a=>abwBandHTML(a,dateStr,false)).join('');
     dayOps.slice(0,3).forEach(op=>{
       const prio=op.prioritaet==='notfall'?'🔴 ':op.prioritaet==='dringlich'?'🟠 ':'';
-      const timeStr=op.uhrzeit?`<span class="chip-time">${op.uhrzeit}</span> `:'';
-      const pat=op.patient||'—';
-      const proc=op.prozedur||op.diagnose||'OP';
+      const timeStr=op.uhrzeit?`<span class="chip-time">${esc(op.uhrzeit)}</span> `:'';
+      const pat=esc(op.patient||'—');
+      const proc=esc(op.prozedur||op.diagnose||'OP');
+      const titleTxt=`${op.patient||''} · ${op.diagnose||''} – ${op.prozedur||''}`;
       const ob=ohneBogen(op);
-      chipsHTML+=`<button class="chip ${chipClass(op)}${ob?' ohne-bogen':''}" draggable="true" data-op-id="${op.id}" ondragstart="dragStartMonth(event,'${op.id}')" ondragend="dragEnd(event)" onclick="event.stopPropagation();showDetail('${op.id}')" title="${op.patient||''} · ${op.diagnose||''} – ${op.prozedur||''}${ob?' · ⚠ kein Anmeldebogen':''}">
+      const bv=bogenVersendet(op);
+      chipsHTML+=`<button class="chip ${chipClass(op)}${ob?' ohne-bogen':''}" draggable="true" data-op-id="${op.id}" ondragstart="dragStartMonth(event,'${op.id}')" ondragend="dragEnd(event)" onclick="event.stopPropagation();showDetail('${op.id}')" title="${esc(titleTxt)}${ob?' · ⚠ kein Anmeldebogen':''}${bv?' · Anmeldebogen versendet':''}">
+        ${bv?bogenVersendetBadge():''}
         <div class="chip-pat">${prio}${ob?'⚠ ':''}${pat}</div>
         <div class="chip-proc">${timeStr}${proc}</div>
       </button>`;
@@ -1136,10 +1165,13 @@ function renderWeek(){
       const bg=chipBg(op), cl=chipColor(op);
       const prio=op.prioritaet==='notfall'?'🔴 ':op.prioritaet==='dringlich'?'🟠 ':'';
       const ob=ohneBogen(op);
-      chipsHTML+=`<button class="week-chip ${chipClass(op)}${ob?' ohne-bogen':''}" draggable="true" data-op-id="${op.id}" ondragstart="dragStartWeek(event,'${op.id}')" ondragend="dragEnd(event)" style="top:${startPx}px;height:${h}px;background:${bg};color:${cl}" onclick="event.stopPropagation();showDetail('${op.id}')" title="${op.patient||''} · ${op.diagnose||''} – ${op.prozedur||''}${ob?' · ⚠ kein Anmeldebogen':''}">
-        <div class="wc-pat">${prio}${ob?'⚠ ':''}${op.patient||'—'}</div>
-        <div class="wc-proc">${op.prozedur||op.diagnose||'OP'}</div>
-        <div class="wc-dur">${op.uhrzeit||''} · ${op.dauer||'?'}min</div>
+      const bv=bogenVersendet(op);
+      const wTitleTxt=`${op.patient||''} · ${op.diagnose||''} – ${op.prozedur||''}`;
+      chipsHTML+=`<button class="week-chip ${chipClass(op)}${ob?' ohne-bogen':''}" draggable="true" data-op-id="${op.id}" ondragstart="dragStartWeek(event,'${op.id}')" ondragend="dragEnd(event)" style="top:${startPx}px;height:${h}px;background:${bg};color:${cl}" onclick="event.stopPropagation();showDetail('${op.id}')" title="${esc(wTitleTxt)}${ob?' · ⚠ kein Anmeldebogen':''}${bv?' · Anmeldebogen versendet':''}">
+        ${bv?bogenVersendetBadge():''}
+        <div class="wc-pat">${prio}${ob?'⚠ ':''}${esc(op.patient||'—')}</div>
+        <div class="wc-proc">${esc(op.prozedur||op.diagnose||'OP')}</div>
+        <div class="wc-dur">${esc(op.uhrzeit||'')} · ${esc(op.dauer||'?')}min</div>
       </button>`;
     });
     // Klickbare Stunden-Slots (hinter den Chips)
@@ -1273,9 +1305,16 @@ async function syncTerminZuBogen(op){
 function showDetail(id){
   const op=ops.find(o=>o.id===id); if(!op) return;
   detailId=id;
-  const badge=(s)=>{const m={geplant:'badge-geplant',bestaetigt:'badge-bestaetigt',fertig:'badge-fertig',abgesagt:'badge-abgesagt'};return `<span class="dp-badge ${m[s]||''}">${{geplant:'Geplant',bestaetigt:'Bestätigt',fertig:'Durchgeführt',abgesagt:'Abgesagt'}[s]||s}</span>`;};
-  const pbadge=(p)=>{const m={notfall:'badge-notfall',dringlich:'badge-dringlich',elektiv:'badge-elektiv'};return `<span class="dp-badge ${m[p]||''}" style="margin-left:6px">${{notfall:'🔴 Notfall',dringlich:'🟠 Dringlich',elektiv:'Elektiv'}[p]||p}</span>`;};
-  const row=(lbl,val)=>val?`<div class="dp-row"><div class="dp-lbl">${lbl}</div><div class="dp-val">${val}</div></div>`:'';
+  /* Fallback-Zweig (||s / ||p) zeigt den rohen Status-/Prioritäts-Wert, falls er
+     keiner der bekannten Konstanten entspricht (z.B. aus einem CSV-Import ohne
+     Validierung) — deshalb escapen, nicht nur bei den bekannten Werten. */
+  const badge=(s)=>{const m={geplant:'badge-geplant',bestaetigt:'badge-bestaetigt',fertig:'badge-fertig',abgesagt:'badge-abgesagt'};return `<span class="dp-badge ${m[s]||''}">${esc({geplant:'Geplant',bestaetigt:'Bestätigt',fertig:'Durchgeführt',abgesagt:'Abgesagt'}[s]||s)}</span>`;};
+  const pbadge=(p)=>{const m={notfall:'badge-notfall',dringlich:'badge-dringlich',elektiv:'badge-elektiv'};return `<span class="dp-badge ${m[p]||''}" style="margin-left:6px">${esc({notfall:'🔴 Notfall',dringlich:'🟠 Dringlich',elektiv:'Elektiv'}[p]||p)}</span>`;};
+  /* Zentraler Punkt für Falldetail-Freitextfelder (Patient, Diagnose, Saal,
+     Anästhesie, Implantate, Operateure, Monitoring, Notizen) — row() wird nur
+     mit reinem Text aufgerufen, nie mit vorformatiertem HTML, escapen ist hier
+     also immer sicher. */
+  const row=(lbl,val)=>val?`<div class="dp-row"><div class="dp-lbl">${lbl}</div><div class="dp-val">${esc(val)}</div></div>`:'';
   document.getElementById('dp-proc').textContent=op.prozedur||op.diagnose||'OP';
   const d=op.datum?new Date(op.datum+'T00:00:00'):null;
   document.getElementById('dp-date').textContent=(d?d.toLocaleDateString('de-DE',{weekday:'long',day:'2-digit',month:'long',year:'numeric'}):'-')+(op.uhrzeit?' · '+op.uhrzeit+' Uhr':'');
@@ -1347,14 +1386,20 @@ async function zeigeBogen(op){
     .select('id,p_name,standort,erstellt,updated_at').eq('id', bid).maybeSingle();
   if(detailId !== openId) return;               // Nutzer hat inzwischen einen anderen Fall geöffnet
   if(error){ el.innerHTML = warnBox('Bogen verknüpft – nicht ladbar', 'Sitzung abgelaufen oder kein Zugriff. Neu einloggen und Seite neu laden – der Bogen ist nicht gelöscht.'); return; }
-  if(!data){ el.innerHTML = warnBox('Verknüpfter Bogen nicht gefunden', 'Fall verweist auf Bogen '+bid+', der nicht (mehr) existiert.'); return; }
+  if(!data){ el.innerHTML = warnBox('Verknüpfter Bogen nicht gefunden', 'Fall verweist auf Bogen '+esc(bid)+', der nicht (mehr) existiert.'); return; }
 
   const ort = data.standort==='rosenheim' ? 'Praxis Rosenheim' : 'Traunstein';
   const stand = (data.updated_at||'').slice(0,10) || data.erstellt || '';
+  /* Versand-Zeile: aus dem bereits geladenen op-Objekt (op_eingriffe.bogen_versendet_am),
+     kein zweiter Netzwerk-Roundtrip nötig — genau dafür ist die Spalte auf op_eingriffe
+     gespiegelt. Bildet nur "Mail-Entwurf geöffnet" ab, nicht "zugestellt". */
+  const versandZeile = op.bogen_versendet_am
+    ? `<div class="dp-versand ja">${BOGEN_VERSENDET_SVG}<span>Anmeldebogen versendet am ${new Date(op.bogen_versendet_am).toLocaleString('de-DE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})} Uhr</span></div>`
+    : `<div class="dp-versand nein">Anmeldebogen noch nicht versendet</div>`;
   el.innerHTML = `<div class="dp-doc"><a href="anmeldebogen.html?id=${encodeURIComponent(data.id)}" title="Anmeldebogen öffnen, bearbeiten oder drucken">
       <span class="dp-doc-ico">📋</span>
       <span><span class="dp-doc-name">Anmeldebogen ${ort}</span>
-      <span class="dp-doc-meta">${data.p_name||''}${stand? ' · Stand '+stand.split('-').reverse().join('.') : ''}</span></span></a></div>`;
+      <span class="dp-doc-meta">${esc(data.p_name)}${stand? ' · Stand '+stand.split('-').reverse().join('.') : ''}</span></span></a></div>${versandZeile}`;
 }
 
 function closeDetail(){ document.getElementById('detailPanel').classList.remove('open'); detailId=null; }
@@ -1519,10 +1564,17 @@ function abwAmTag(dateStr){
     .sort((a,b) => reihenfolge.indexOf(a.person) - reihenfolge.indexOf(b.person));
 }
 
+/* a.art hat in der DB kein CHECK-Constraint (abwesenheiten_schema.sql), nur die
+   drei UI-Werte sind vorgesehen. Whitelist statt rohem Fallback — sonst könnte
+   ein abweichender Wert sowohl aus dem class="..."-Attribut ausbrechen (cls)
+   als auch unescaped als Button-Text (text) landen. Gleiches Muster wie
+   chipClass()/STATUS_KLASSEN. */
+const ART_KLASSEN = ['urlaub','fortbildung','krank'];
 function abwBandHTML(a, dateStr, kompakt){
   const p = PERSONEN[a.person] || { kuerzel:'??', name:a.person, fg:'var(--text)', bg:'var(--bg)' };
-  const artLbl = ARTEN[a.art] || a.art || '';
-  const cls = ['abw-band', 'art-'+(a.art||'urlaub')];
+  const artKey = ART_KLASSEN.includes(a.art) ? a.art : 'urlaub';
+  const artLbl = ARTEN[artKey];
+  const cls = ['abw-band', 'art-'+artKey];
   if(dateStr === a.von) cls.push('start');
   if(dateStr === a.bis) cls.push('end');
   const text = kompakt ? p.kuerzel : `${p.kuerzel} · ${artLbl}`;
@@ -1532,7 +1584,13 @@ function abwBandHTML(a, dateStr, kompakt){
 }
 
 function fmtDE(iso){ if(!iso) return ''; const [y,m,d] = iso.split('-'); return `${d}.${m}.${y}`; }
-function esc(s){ return String(s||'').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+/* HTML-Escaping für alle aus Supabase geladenen Freitextfelder, die per
+   innerHTML/Template-String gerendert werden (Patient, Diagnose, Notizen,
+   Implantate, ...). Reihenfolge wichtig: & zuerst, sonst werden die gerade
+   erzeugten Entities selbst nochmal escaped (Doppel-Escaping). */
+function esc(s){
+  return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
 
 function renderLegendAbw(){
   const el = document.getElementById('legendAbw');

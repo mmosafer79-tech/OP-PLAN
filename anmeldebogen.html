@@ -196,8 +196,8 @@ select.fill{border:none;border-bottom:1px solid var(--border-strong);background:
     <div class="bt">Patient</div>
     <div class="etikett" data-only="traunstein">Patientenetikett</div>
     <div class="row two-col">
-      <div class="field"><label>Name, Vorname</label><input class="fill" id="p_name" placeholder="Nachname, Vorname"></div>
-      <div class="field"><label>Geb.-Datum</label><input class="fill" id="p_gebdat" type="text" placeholder="TT.MM.JJJJ"></div>
+      <div class="field"><label>Name, Vorname *</label><input class="fill" id="p_name" placeholder="Nachname, Vorname"></div>
+      <div class="field"><label>Geb.-Datum *</label><input class="fill" id="p_gebdat" type="text" placeholder="TT.MM.JJJJ"></div>
       <div class="field"><label>Geschlecht</label><input class="fill" id="p_geschlecht" placeholder="M / W / D"></div>
       <div class="field"><label>Fall-/Aufnahme-Nr.</label><input class="fill" id="p_fallnr" placeholder="z. B. 101562629"></div>
       <div class="field"><label>Straße</label><input class="fill" id="p_strasse" placeholder="Straße Nr."></div>
@@ -210,7 +210,7 @@ select.fill{border:none;border-bottom:1px solid var(--border-strong);background:
            hier hoch: Bei Patienten aus der Praxis-Sprechstunde liegt im KIS kein
            aktueller Datensatz, das ZBM kann die Nummer also nicht selbst ermitteln.
            Bewusst dieselbe Spalte tel_pat — kein zweites Feld, keine Doppelerfassung. -->
-      <div class="field"><label>Tel. Patient</label><input class="fill" id="z_tel_pat" type="tel" placeholder="Telefon / Mobil"></div>
+      <div class="field"><label>Tel. Patient *</label><input class="fill" id="z_tel_pat" type="tel" placeholder="Telefon / Mobil"></div>
     </div>
     <div class="sep"></div>
     <div class="inline-cbx">
@@ -218,6 +218,7 @@ select.fill{border:none;border-bottom:1px solid var(--border-strong);background:
       <label class="cbx"><input type="checkbox" id="c_terminieren"><span class="mark"></span>Pat. terminieren</label>
       <div class="field" style="flex:1;min-width:220px"><label>Wunschmonat / -termin</label><input class="fill" id="p_wunschtermin" placeholder="z. B. September"></div>
     </div>
+    <div class="hint" style="margin-top:4px">* Pflichtfeld</div>
   </div>
 
   <!-- DRINGLICHKEIT + EINGRIFF -->
@@ -228,7 +229,7 @@ select.fill{border:none;border-bottom:1px solid var(--border-strong);background:
       <label class="cbx"><input type="radio" name="dring" value="dringlich"><span class="mark"></span>Dringlich</label>
       <label class="cbx"><input type="radio" name="dring" value="Notfall"><span class="mark"></span>Notfall</label>
     </div>
-    <div class="field"><label>Diagnose</label><textarea class="fill" id="f_diagnose" rows="1" placeholder="Diagnose"></textarea></div>
+    <div class="field"><label>Diagnose *</label><textarea class="fill" id="f_diagnose" rows="1" placeholder="Diagnose"></textarea></div>
     <div class="two-col">
       <div class="field"><label>ICD-10</label><input class="fill" id="f_icd" placeholder="z. B. M96.0"></div>
       <div class="field"><label>OPS-Code</label><input class="fill" id="f_ops" placeholder="z. B. 5-836"></div>
@@ -803,7 +804,20 @@ async function ladeAusURL(){
 async function persist(){
   if(!(await checkAuth())) return {ok:false};
   if(!darfSchreiben()){ alert('Nur-Lese-Zugriff — Speichern ist mit diesem Konto nicht möglich.'); return {ok:false}; }
-  if(!g('p_name') && !g('f_diagnose')){ alert('Bitte mindestens Name oder Diagnose angeben.'); return {ok:false}; }
+
+  /* Pflichtfelder (Beschluss 2026-08-09): Name, Geb.-Datum, Diagnose,
+     Tel. Patient. Ohne diese vier kann das ZBM den Fall weder identifizieren
+     noch erreichen — und der Dubletten-/Adoptionsschutz oben in dieser
+     Funktion braucht ein Geb.-Datum, um zuverlässig statt gelegentlich zu
+     greifen. Durchgesetzt zentral hier, gilt also für "Speichern" UND
+     "Speichern & Versenden" gleichermaßen. */
+  const PFLICHT = [['p_name','Name, Vorname'], ['p_gebdat','Geb.-Datum'], ['f_diagnose','Diagnose'], ['z_tel_pat','Tel. Patient']];
+  const fehlend = PFLICHT.filter(([id]) => !g(id));
+  if(fehlend.length){
+    alert('Bitte folgende Pflichtfelder ausfüllen:\n– ' + fehlend.map(([,label])=>label).join('\n– '));
+    document.getElementById(fehlend[0][0])?.focus();
+    return {ok:false};
+  }
   const bogen = collect();
   currentId = bogen.id;
   setState('Speichere …');
@@ -1082,12 +1096,34 @@ function baueWordHtml(b){
     + '</div></body></html>';
 }
 
-/* Dateiname aus "Nachname, Vorname" + Geb.-Datum + OP-Datum, bereinigt.
-   Leerfelder werden übersprungen statt als "__" im Namen zu landen. */
+/* Dateiname OHNE Klarname (Beschluss 2026-08-09): die Datei geht als Mail-
+   Anhang ans ZBM raus, der Dateiname selbst reist damit im Klartext durch
+   Mail-Header/-Logs eines fremden Verantwortlichen — anders als der reine
+   Ordnerinhalt. Schema: Initialen_YYYYMMDD_Anker.
+     - Initialen: 1. Buchstabe Nachname + 1. Buchstabe Vorname aus
+       "Nachname, Vorname". Fallback "XX" bei leerem/kommalosem Namen.
+     - Datum: OP-Datum, sonst Erstellungsdatum, sonst heute (YYYYMMDD).
+     - Anker: letzte 6 Ziffern der Bogen-ID (= Date.now() beim Anlegen) —
+       kein Personenbezug, aber praktisch kollisionsfrei: verhindert, dass
+       zwei Patienten mit gleichen Initialen am selben Tag sich gegenseitig
+       überschreiben. Da der Anker aus der ID DIESES Bogens stammt, ergibt
+       erneutes Sichern desselben Bogens wieder denselben Dateinamen
+       (gewolltes Selbst-Überschreiben, kein Fremd-Überschreiben).
+   Der Inhalt der Word-Datei behält weiterhin Klarname/Geb.-Datum — das
+   ZBM muss den Patienten zur Aufnahme identifizieren können. */
+function bogenInitialen(pName){
+  const teile = String(pName||'').split(',');
+  const nach = (teile[0]||'').trim().charAt(0);
+  const vor  = (teile[1]||'').trim().charAt(0);
+  const kuerzel = (nach+vor).toUpperCase();
+  return kuerzel || 'XX';
+}
 function bogenDateiname(b){
-  const nachname = (b.p_name||'').split(',')[0].trim() || 'Patient';
-  const teile = [nachname, b.p_gebdat, b.op_datum].filter(Boolean);
-  const roh = 'Anmeldebogen_' + teile.join('_');
+  const initialen = bogenInitialen(b.p_name);
+  const datRoh = b.op_datum || b.erstellt || new Date().toISOString().slice(0,10);
+  const datum = String(datRoh).replace(/-/g,'').slice(0,8) || '00000000';
+  const anker = String(b.id||'').replace(/\D/g,'').slice(-6) || '000000';
+  const roh = [initialen, datum, anker].join('_');
   const sicher = roh.replace(/[\\/:*?"<>|]/g,'').replace(/\s+/g,'_');
   return sicher + '.doc';
 }
@@ -1210,6 +1246,29 @@ function schliesseVersand(){ document.getElementById('versandOverlay').style.dis
 /* Mail-Entwurf ans ZBM öffnen. Wird aus dem Versand-Panel per Klick gerufen,
    die User-Activation ist also frisch. */
 function mailOeffnen(){
+  /* Versand-Zeitstempel setzen — OHNE await. Ein await hier würde die
+     synchrone Ausführung verlassen und die transiente User-Activation
+     verbrauchen, die window.open() weiter unten im PWA-Standalone-Zweig
+     braucht (die Activation läuft nach wenigen Sekunden ab; ein
+     Supabase-Roundtrip davor reißt sie fast sicher). Deshalb: Updates
+     nur anstoßen (supabase-js dispatcht sofort), mailto/window.open
+     bleibt synchron direkt im selben Klick-Handler.
+     Bewusst NICHT Teil von collect()/persist() — sonst würde jedes
+     normale "💾 Speichern" (ohne Versand) den Zeitstempel überschreiben.
+     Bekannte Einschränkung: bildet nur "Mail-Entwurf geöffnet" ab, nicht
+     "Mail zugestellt" (gleiche Grenze wie beim mailto-Anhang selbst). Bei
+     Rolle "planer" + bereits bestätigtem Fall lehnt die RLS das
+     op_eingriffe-Update ab (planer darf bestätigte Fälle nicht ändern) —
+     das Badge bleibt dann aus, der anmeldeboegen-Zeitstempel wird trotzdem
+     gesetzt; kein Fehlverhalten, nur eine bekannte Lücke für diesen Fall. */
+  if(currentId){
+    const jetzt = new Date().toISOString();
+    sb.from('anmeldeboegen').update({versendet_am: jetzt}).eq('id', currentId)
+      .then(({error})=>{ if(error) console.warn('versendet_am (anmeldeboegen) nicht gesetzt:', error.message); });
+    sb.from('op_eingriffe').update({bogen_versendet_am: jetzt}).eq('bogen_id', currentId)
+      .then(({error})=>{ if(error) console.warn('bogen_versendet_am (op_eingriffe) nicht gesetzt:', error.message); });
+  }
+
   const b = collect();
   const L=[];
   L.push(standort==='traunstein' ? 'SPRECHSTUNDENANFORDERUNG WIRBELSÄULENCHIRURGIE' : 'ANMELDEBOGEN WIRBELSÄULENCHIRURGIE');
