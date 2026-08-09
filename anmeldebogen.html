@@ -151,7 +151,7 @@ select.fill{border:none;border-bottom:1px solid var(--border-strong);background:
   <a href="index.html" title="Zurück zum OP-Plan">← OP-Plan</a>
   <button class="nur-schreib" onclick="neuerBogen()" title="Leeren Bogen">＋ Neu</button>
   <button onclick="druckenPDF()" title="Drucken / als PDF speichern">🖨 Drucken/PDF</button>
-  <button class="nur-schreib" onclick="versenden()" title="Erst speichern + OP-Plan-Eintrag, danach PDF und Mail ans ZBM">✉ Speichern &amp; Versenden</button>
+  <button class="nur-schreib" onclick="versenden()" title="Erst speichern + OP-Plan-Eintrag, danach Word-Datei und Mail ans ZBM">✉ Speichern &amp; Versenden</button>
   <button class="gold nur-schreib" onclick="speichern()" title="In Datenbank speichern + OP-Plan-Eintrag">💾 Speichern</button>
 </div>
 
@@ -165,10 +165,10 @@ select.fill{border:none;border-bottom:1px solid var(--border-strong);background:
     <h2 style="font-size:16px;color:var(--navy);margin-bottom:.4rem">Bogen gespeichert ✓</h2>
     <p id="versandInfo" style="font-size:12.5px;color:var(--muted);line-height:1.55;margin-bottom:1.1rem"></p>
     <p style="font-size:12.5px;line-height:1.55;margin-bottom:1rem">
-      Für den Versand ans ZBM: <b>zuerst</b> das PDF sichern, <b>dann</b> den Mail-Entwurf öffnen und das PDF dort anhängen.
+      Für den Versand ans ZBM: <b>zuerst</b> die Word-Datei sichern, <b>dann</b> den Mail-Entwurf öffnen und die Word-Datei dort anhängen.
     </p>
     <div style="display:flex;flex-direction:column;gap:8px">
-      <button onclick="druckenPDF()" style="padding:10px;font-size:13.5px;font-weight:600;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--navy);cursor:pointer">🖨 1. PDF sichern</button>
+      <button onclick="wordSichern()" style="padding:10px;font-size:13.5px;font-weight:600;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--navy);cursor:pointer">📄 1. Word-Datei sichern</button>
       <button onclick="mailOeffnen()" style="padding:10px;font-size:13.5px;font-weight:600;border:none;border-radius:6px;background:var(--navy);color:#fff;cursor:pointer">✉ 2. Mail-Entwurf ans ZBM öffnen</button>
       <button onclick="schliesseVersand()" style="padding:9px;font-size:12.5px;border:none;border-radius:6px;background:transparent;color:var(--muted);cursor:pointer">Schließen</button>
     </div>
@@ -904,8 +904,290 @@ async function speichern(){
 /* ---------- Drucken / PDF ---------- */
 function druckenPDF(){ window.print(); }
 
+/* ---------- Word-Export ----------
+   Ersetzt das PDF als Ablage-/Anhang-Format (Beschluss 2026-08-09): die Klinik
+   (ZBM) soll den unteren Block "Vom ZBM auszufüllen" direkt am Bildschirm
+   ausfüllen können, ein PDF kann das nicht. Format: .doc (Word-HTML) — ohne
+   externe Bibliothek, öffnet in echtem MS Word als vollständig editierbares
+   Dokument. WICHTIG: Word rendert mit einer alten HTML-Engine; das
+   Bildschirm-CSS (Flex/Grid) wird hier NICHT wiederverwendet, stattdessen ein
+   eigenständiges, tabellenbasiertes Layout mit Inline-Styles gebaut. */
+
+/* Roh-HTML-Escaping — die Werte stammen aus Patientendaten-Freitextfeldern,
+   landen hier in einem String, der als Datei-Blob gespeichert wird (kein
+   DOM-Insert, kein XSS-Vektor im Browser selbst) — trotzdem sauber escapen,
+   damit z. B. ein "<" in der Diagnose die Word-Datei nicht verunstaltet. */
+function escWord(s){
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function markWord(b){ return b ? '☒' : '☐'; }
+
+/* Ein Zeilenpaar Label/Wert als Word-taugliche Tabellenzeile */
+function wRow(label, value){
+  return '<tr><td style="padding:2px 8px 2px 0;font-size:9pt;color:#555;white-space:nowrap;vertical-align:top">'+escWord(label)+'</td>'
+       + '<td style="padding:2px 0;font-size:10pt;border-bottom:1px solid #999">'+(escWord(value)||'&nbsp;')+'</td></tr>';
+}
+/* Eine Ankreuz-Zeile (Label + Zustand) */
+function wCbx(label, checked){
+  return '<span style="margin-right:14px;font-size:10pt">'+markWord(checked)+'&nbsp;'+escWord(label)+'</span>';
+}
+function wSection(title){
+  return '<tr><td colspan="2" style="padding:10px 0 4px;font-size:10.5pt;font-weight:bold;color:#0a2240;border-bottom:1.5px solid #0a2240">'+escWord(title)+'</td></tr>';
+}
+
+function baueWordHtml(b){
+  const diag = diagnostikText(), lab = laborText(), abs = absetzenText();
+  const T = [];
+  T.push('<table style="width:100%;border-collapse:collapse;font-family:Calibri,Arial,sans-serif">');
+
+  T.push(wSection('Patient'));
+  T.push(wRow('Name, Vorname', b.p_name));
+  T.push(wRow('Geb.-Datum', b.p_gebdat));
+  T.push(wRow('Geschlecht', b.p_geschlecht));
+  T.push(wRow('Fall-/Aufnahme-Nr.', b.p_fallnr));
+  T.push(wRow('Straße', b.p_strasse));
+  T.push(wRow('PLZ / Ort', b.p_ort));
+  T.push(wRow('Krankenkasse', b.p_kasse));
+  T.push(wRow('Vers.-Nr.', b.p_versnr));
+  T.push(wRow('Kostenträger', b.p_kostentraeger));
+  T.push(wRow('Behandlungskat.', b.p_bkat));
+  T.push(wRow('Tel. Patient', b.tel_pat));
+  T.push('<tr><td colspan="2" style="padding:4px 0">'
+       + wCbx('mit Begleitperson', b.begleitperson) + wCbx('Pat. terminieren', b.terminieren) + '</td></tr>');
+  T.push(wRow('Wunschmonat / -termin', b.p_wunschtermin));
+
+  T.push(wSection('Dringlichkeit & Eingriff'));
+  T.push('<tr><td colspan="2" style="padding:4px 0">'
+       + ['Elektiv','dringlich','Notfall'].map(v=>wCbx(v, b.dringlichkeit===v)).join('') + '</td></tr>');
+  T.push(wRow('Diagnose', b.diagnose));
+  T.push(wRow('ICD-10', b.icd));
+  T.push(wRow('OPS-Code', b.ops_code));
+  T.push(wRow('1. Operation', b.op1_text));
+  T.push(wRow('2. Operation', b.op2_text));
+  T.push(wRow('OP-Dauer (min)', b.op_dauer));
+  T.push(wRow('Seite', b.seite));
+  T.push('<tr><td colspan="2" style="padding:4px 0">'
+       + ['Bauchlage','Rücken','Seitenlagerung','Halotraktion'].map(v=>wCbx(v, b.lagerung===v)).join('') + '</td></tr>');
+  T.push('<tr><td colspan="2" style="padding:2px 0">'+wCbx('IONM erforderlich', b.ionm)+'</td></tr>');
+  T.push('<tr><td colspan="2" style="padding:2px 0">'
+       + wCbx('Single shot', b.ab_single_shot) + wCbx('Cefuroxim', b.ab_cefuroxim) + '</td></tr>');
+  T.push(wRow('Antibiose sonstiges', b.ab_antibiose_sonst));
+  T.push(wRow('Implantat', b.implantat + (b.implantat_bestellen ? '  (muss bestellt werden → sep. Bogen)' : '')));
+  T.push('<tr><td colspan="2" style="padding:2px 0">'
+       + wCbx('Blutgruppe inkl. AK', b.blut_blutgruppe) + wCbx('EK bereitstellen', b.blut_ek)
+       + wCbx('Cell-Saver', b.blut_cellsaver) + wCbx('ICU post OP', b.icu_postop) + '</td></tr>');
+  T.push('<tr><td colspan="2" style="padding:2px 0">'+wCbx('Standardlabor inkl. CRP', b.lab_standard)+'</td></tr>');
+  T.push(wRow('Labor, erweiterte Parameter', b.lab_zusatz));
+
+  T.push(wSection('Aufnahme & Planung'));
+  T.push('<tr><td colspan="2" style="padding:4px 0">'
+       + ['stationär','ambulant'].map(v=>wCbx(v, b.aufnahmemodus===v)).join('')
+       + wCbx('OP i. AOZ möglich', b.aoz_moeglich) + '</td></tr>');
+  T.push(wRow('OP innerhalb', [b.op_innerhalb_wert, b.op_innerhalb_einheit].filter(Boolean).join(' ')));
+  T.push(wRow('nicht vor (Tagen)', b.nicht_vor_tagen));
+  T.push(wRow('OP-Datum', b.op_datum));
+  T.push(wRow('Uhrzeit', b.uhrzeit));
+  T.push('<tr><td colspan="2" style="padding:2px 0">'
+       + ['am OP-Tag','1 Tag vor OP'].map(v=>wCbx(v, b.aufnahme_zeitpunkt===v)).join('') + '</td></tr>');
+  T.push(wRow('Verweildauer ca. (Tage)', b.verweildauer_tage));
+  T.push(wRow('präop. Tage', b.praeop_tage));
+  T.push(wRow('postop. Tage', b.postop_tage));
+  T.push('<tr><td colspan="2" style="padding:2px 0">'
+       + ['1 Bett','2 Bett','Chefarztwahl'].map(v=>wCbx(v, b.unterbringung===v)).join('') + '</td></tr>');
+
+  T.push(wSection('Rehabilitation'));
+  T.push('<tr><td colspan="2" style="padding:4px 0">'
+       + ['AHB','6 Wo. nach OP','keine'].map(v=>wCbx(v, b.reha_art===v)).join('') + '</td></tr>');
+  T.push(wRow('Reha planen ab', b.reha_planen_ab));
+  T.push(wRow('bevorzugt in', b.reha_wunschklinik));
+  T.push(wRow('Sozialdienstinfo durch ZBM am', b.sozialdienst_am));
+
+  T.push(wSection('Kinder / Korsett'));
+  T.push('<tr><td colspan="2" style="padding:2px 0">'
+       + wCbx('Narkose', b.kind_narkose) + wCbx('in Sedierung', b.kind_sedierung) + '</td></tr>');
+  T.push('<tr><td colspan="2" style="padding:2px 0">'
+       + ['Ja','Nein'].map(v=>wCbx('Korsett: '+v, b.korsett===v)).join('') + '</td></tr>');
+  T.push(wRow('Korsett sonstiges', b.korsett_sonstiges));
+
+  T.push(wSection('Gerinnung & Medikamente'));
+  T.push('<tr><td colspan="2" style="padding:2px 0">'+wCbx('Pat. nimmt keine Medikamente', b.keine_medikamente)+'</td></tr>');
+  T.push(wRow('ASS', (b.ass_modus||'-') + (b.ass_ab ? ' ab '+b.ass_ab : '')));
+  T.push(wRow('Clopidogrel / OAK', (b.clopi_modus||'-') + (b.clopi_ab ? ' ab '+b.clopi_ab : '')));
+  T.push(wRow('Marcumar', (b.marcumar_modus||'-') + (b.marcumar_ab ? ' ab '+b.marcumar_ab : '')));
+  T.push('<tr><td colspan="2" style="padding:2px 0">'
+       + wCbx('Metformin absetzen', b.ab_metformin) + wCbx('GLP-1 absetzen', b.ab_glp)
+       + wCbx('Herzschrittmacher', b.ab_schrittmacher) + wCbx('präoperativ abführen', b.praeop_abfuehren) + '</td></tr>');
+  T.push(wRow('Medikamente sonstiges', b.ab_sonstiges));
+  T.push(wRow('Allergien', b.allergien));
+
+  T.push(wSection('Diagnostik anfordern'));
+  T.push('<tr><td colspan="2" style="padding:2px 0">'+wCbx('Röntgen', b.d_roentgen)
+       + wCbx('HWS', b.d_rx_hws) + wCbx('LWS', b.d_rx_lws) + wCbx('PAN (Ganzwirbelsäule)', b.d_rx_pan) + '</td></tr>');
+  T.push('<tr><td colspan="2" style="padding:2px 0">'+wCbx('Funktionsaufnahmen', b.d_funktion)
+       + wCbx('Bending', b.d_bending) + wCbx('Traktionsaufnahme', b.d_traktion) + '</td></tr>');
+  T.push('<tr><td colspan="2" style="padding:2px 0">'+wCbx('CT', b.d_ct) + wCbx('CT Navigation WS', b.d_ct_nav) + '</td></tr>');
+  T.push('<tr><td colspan="2" style="padding:2px 0">'+wCbx('MRT', b.d_mrt)
+       + wCbx('MRT Navigation Kopf', b.d_mrt_navkopf) + wCbx('MRT funktionell', b.d_mrt_funkt) + '</td></tr>');
+  T.push('<tr><td colspan="2" style="padding:2px 0">'+wCbx('diagn. Infiltration', b.d_infiltration) + wCbx('Myelographie', b.d_myelo) + '</td></tr>');
+  T.push(wRow('Diagnostik sonstiges', b.d_sonstiges));
+
+  T.push(wSection('Befunde prästationär'));
+  const befRow = (label, status, geplant, hz) =>
+    '<tr><td colspan="2" style="padding:2px 0">'+wCbx(label+': vorhanden', status==='vorhanden')+wCbx('ausstehend', status==='ausstehend')
+    + (geplant? '&nbsp;&nbsp;geplant am '+escWord(geplant) : '') + (hz? '&nbsp;&nbsp;Hz '+escWord(hz) : '') + '</td></tr>';
+  T.push(befRow('Rö', b.bef_ro_status, b.bef_ro_geplant, b.bef_ro_hz));
+  T.push(befRow('CT', b.bef_ct_status, b.bef_ct_geplant, b.bef_ct_hz));
+  T.push(befRow('MRT', b.bef_mrt_status, b.bef_mrt_geplant, b.bef_mrt_hz));
+  if(b.bef_sonst_label) T.push(befRow(b.bef_sonst_label, b.bef_sonst_status, b.bef_sonst_geplant, b.bef_sonst_hz));
+
+  T.push(wSection('Bemerkung'));
+  T.push('<tr><td colspan="2" style="padding:4px 0;font-size:10pt">'+(escWord(b.notiz)||'&nbsp;')+'</td></tr>');
+
+  T.push(wSection('Anordnender Arzt'));
+  T.push(wRow('Name', b.arzt));
+  T.push(wRow('Tel. / WLAN für Rückfragen', b.arzt_tel));
+  T.push(wRow('Datum', b.erstellt));
+  T.push('<tr><td colspan="2" style="padding-top:16px">Unterschrift: ______________________________</td></tr>');
+
+  /* ZBM-Block bewusst LEER — nicht die gespeicherten Werte aus b, sondern
+     leere, editierbare Felder. Genau dieser Block soll die Klinik am
+     Bildschirm ausfüllen (Anlass des Word-Exports, Beschluss 2026-08-09). */
+  T.push('<tr><td colspan="2" style="padding-top:14px;background:#f4f6fa">'
+       + '<div style="font-size:10.5pt;font-weight:bold;color:#0a2240;padding:6px 4px 2px">Vom ZBM auszufüllen</div></td></tr>');
+  T.push('<tr><td colspan="2" style="background:#f4f6fa;padding-bottom:8px">'
+       + '<table style="width:100%;border-collapse:collapse">'
+       + wRow('OPV', '') + wRow('OPV Anästhesie', '') + wRow('OP am', '')
+       + wRow('Tel. Angehörige', '') + wRow('Betreuer', '')
+       + '</table>'
+       + '<div style="font-size:8.5pt;color:#555;padding:4px 4px 0">ZBM-Fax Traunstein: 0861/705-2219 · ZBM-Fax Reichenhall: 08651/772619</div>'
+       + '</td></tr>');
+
+  T.push('</table>');
+
+  const titel = (standort==='traunstein' ? 'Sprechstundenanforderung' : 'Anmeldebogen') + ' Wirbelsäulenchirurgie · Klinikum Traunstein';
+  /* MSO-Pagesetup A4 + WordSection1 ist der von Word erwartete Weg, damit die
+     Seiteneinrichtung beim Öffnen stimmt. UTF-8-BOM + eigenes <meta charset>
+     doppelt absichern — die App-eigene <meta charset> im Kopf des Dokuments
+     gilt nicht für diesen eigenständigen Datei-String. */
+  return '﻿' +
+    '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">'
+    + '<head><meta http-equiv="Content-Type" content="text/html; charset=utf-8"><meta charset="utf-8">'
+    + '<title>'+escWord(titel)+'</title>'
+    + '<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml><![endif]-->'
+    + '<style>@page WordSection1{size:21cm 29.7cm;margin:2cm 1.8cm} div.WordSection1{page:WordSection1} body{font-family:Calibri,Arial,sans-serif}</style>'
+    + '</head><body><div class="WordSection1">'
+    + '<h2 style="color:#0a2240;font-size:14pt;margin:0 0 2px">Wirbelsäulenchirurgie</h2>'
+    + '<div style="font-size:10pt;color:#555;margin-bottom:12px">'+escWord((standort==='traunstein'?'Sprechstundenanforderung / Anmeldung zur operativen Behandlung':'Anmeldebogen'))+' · Klinikum Traunstein (Kliniken Südostbayern AG)</div>'
+    + T.join('')
+    + '</div></body></html>';
+}
+
+/* Dateiname aus "Nachname, Vorname" + Geb.-Datum + OP-Datum, bereinigt.
+   Leerfelder werden übersprungen statt als "__" im Namen zu landen. */
+function bogenDateiname(b){
+  const nachname = (b.p_name||'').split(',')[0].trim() || 'Patient';
+  const teile = [nachname, b.p_gebdat, b.op_datum].filter(Boolean);
+  const roh = 'Anmeldebogen_' + teile.join('_');
+  const sicher = roh.replace(/[\\/:*?"<>|]/g,'').replace(/\s+/g,'_');
+  return sicher + '.doc';
+}
+
+/* ---------- Ablage im Ordner "OP-Anmeldungen Traunstein" ----------
+   File System Access API (Chrome/PWA): Verzeichnis-Handle wird einmalig per
+   showDirectoryPicker() gewählt und in IndexedDB gemerkt. Die Schreib-
+   Berechtigung (readwrite) übersteht KEINEN App-Neustart (Chrome-Vorgabe) —
+   pro Sitzung ist daher einmal ein Bestätigungsklick nötig (requestPermission).
+   Deshalb: diese Funktion nur direkt aus einem frischen Button-Klick aufrufen,
+   kein await davor, sonst ist die User-Activation für den Dialog verbraucht.
+   Fallback (Safari/Firefox, IndexedDB blockiert, Abbruch): normaler Download. */
+const WORD_DIR_DB = 'opplan-word-export', WORD_DIR_STORE = 'handles', WORD_DIR_KEY = 'anmeldungen-traunstein';
+
+function idbOpen(){
+  return new Promise((resolve, reject)=>{
+    const req = indexedDB.open(WORD_DIR_DB, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(WORD_DIR_STORE);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror   = () => reject(req.error);
+  });
+}
+async function idbGetHandle(){
+  try{
+    const db = await idbOpen();
+    return await new Promise((resolve)=>{
+      const tx = db.transaction(WORD_DIR_STORE,'readonly').objectStore(WORD_DIR_STORE).get(WORD_DIR_KEY);
+      tx.onsuccess = () => resolve(tx.result || null);
+      tx.onerror   = () => resolve(null);
+    });
+  }catch(e){ return null; }
+}
+async function idbSetHandle(handle){
+  try{
+    const db = await idbOpen();
+    await new Promise((resolve)=>{
+      const tx = db.transaction(WORD_DIR_STORE,'readwrite').objectStore(WORD_DIR_STORE).put(handle, WORD_DIR_KEY);
+      tx.onsuccess = () => resolve(); tx.onerror = () => resolve();
+    });
+  }catch(e){ /* IndexedDB nicht verfügbar (z. B. privater Modus) -> nächstes Mal erneut fragen */ }
+}
+
+function downloadFallback(blob, dateiname){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = dateiname;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 4000);
+}
+
+/* Schreibt den Blob in den gemerkten Ordner. Gibt true zurück bei Erfolg über
+   die File System Access API, false wenn der Fallback-Download lief. */
+async function sichereBogenDatei(blob, dateiname){
+  if(!('showDirectoryPicker' in window)){
+    downloadFallback(blob, dateiname);
+    return false;
+  }
+  try{
+    let handle = await idbGetHandle();
+    if(!handle){
+      handle = await window.showDirectoryPicker({ id:'op-anmeldungen-traunstein', mode:'readwrite',
+        startIn:'desktop' });
+      await idbSetHandle(handle);
+    }
+    let perm = await handle.queryPermission({ mode:'readwrite' });
+    if(perm !== 'granted') perm = await handle.requestPermission({ mode:'readwrite' });
+    if(perm !== 'granted') throw new Error('Schreibrechte für den Ordner wurden nicht erteilt.');
+
+    const fileHandle = await handle.getFileHandle(dateiname, { create:true });
+    const writable = await fileHandle.createWritable();
+    try{
+      await writable.write(blob);
+    } finally {
+      await writable.close();
+    }
+    return true;
+  }catch(err){
+    if(err && err.name === 'AbortError'){
+      // Nutzer hat die Ordnerauswahl/Berechtigung abgebrochen -> nichts erzwingen,
+      // aber ohne Datei bleibt der Bogen nicht gesichert -> Fallback anbieten.
+      downloadFallback(blob, dateiname);
+      return false;
+    }
+    console.warn('Ablage im Ordner fehlgeschlagen, Fallback-Download:', err);
+    downloadFallback(blob, dateiname);
+    return false;
+  }
+}
+
+async function wordSichern(){
+  const b = collect();
+  const html = baueWordHtml(b);
+  const blob = new Blob([html], { type:'application/msword' });
+  const dateiname = bogenDateiname(b);
+  const perOrdner = await sichereBogenDatei(blob, dateiname);
+  setState(perOrdner ? 'Word-Datei in „OP-Anmeldungen Traunstein" gesichert ✓' : 'Word-Datei heruntergeladen ✓');
+}
+
 /* ---------- Versenden ----------
-   Ablauf: SPEICHERN → dann Versand-Panel → Mail/PDF per eigenem Klick.
+   Ablauf: SPEICHERN → dann Versand-Panel → Word-Datei/Mail per eigenem Klick.
 
    Früher lief es umgekehrt (erst mailto, dann print(), zuletzt persist()),
    weil mailto eine frische User-Activation braucht. Das war fragil: sobald
@@ -932,7 +1214,7 @@ function mailOeffnen(){
   const L=[];
   L.push(standort==='traunstein' ? 'SPRECHSTUNDENANFORDERUNG WIRBELSÄULENCHIRURGIE' : 'ANMELDEBOGEN WIRBELSÄULENCHIRURGIE');
   L.push('');
-  L.push('Patientendaten (Name, Geb.-Datum, Kasse, Vers.-Nr.) siehe PDF im Anhang.');
+  L.push('Patientendaten (Name, Geb.-Datum, Kasse, Vers.-Nr.) siehe Word-Datei im Anhang.');
   L.push('');
   L.push('Dringlichkeit: '+(b.dringlichkeit||'-'));
   L.push('Diagnose: '+(b.diagnose||'-'));
@@ -953,7 +1235,7 @@ function mailOeffnen(){
   L.push('');
   L.push('Anordnender Arzt: '+b.arzt+(b.arzt_tel?'  ·  Tel. '+b.arzt_tel:''));
   L.push('');
-  L.push('(Hinweis: Bitte das eben als PDF gesicherte Bogen-Dokument an diese Mail anhängen.)');
+  L.push('(Hinweis: Bitte die eben gesicherte Word-Datei an diese Mail anhängen.)');
   const subj=(standort==='traunstein'?'Sprechstundenanforderung Wirbelsäulenchirurgie':'Anmeldebogen Wirbelsäulenchirurgie')+(b.op_datum?' · OP '+b.op_datum:'');
 
   /* In der installierten App (PWA, display-mode standalone) verschluckt Chrome
