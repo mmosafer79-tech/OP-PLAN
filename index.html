@@ -1122,6 +1122,48 @@ function renderMonth(){
   `;
 }
 
+/* Kollisions-Layout für die Wochenansicht (2026-08-10, Fund: 3 Fälle am selben
+   Tag mit identischer Uhrzeit lagen exakt übereinander, zwei davon dadurch
+   unsichtbar — die Chips wurden bisher unabhängig von Überschneidungen immer
+   über die volle Spaltenbreite positioniert). Klassischer "greedy column"-
+   Algorithmus wie in Google Calendar/Outlook: zeitlich zusammenhängende
+   Termine (auch nur teilweise überlappend, verkettet über mehrere Termine)
+   bilden einen Cluster; jeder Termin bekommt die erste freie Spalte im
+   Cluster; die Spaltenzahl des Clusters bestimmt die Breite aller darin
+   liegenden Termine. Nicht überlappende Termine bleiben unverändert bei
+   voller Breite (cols=1). */
+function weekKollisionsLayout(dayOps){
+  const parsed = dayOps.map(op=>{
+    const [h,m] = (op.uhrzeit||'08:00').split(':').map(Number);
+    const start = (h||0)*60 + (m||0);
+    const dur = parseInt(op.dauer)||60;
+    return { op, start, end: start + Math.max(dur,15) };
+  }).sort((a,b)=> a.start-b.start || a.end-b.end);
+
+  const result = [];
+  let cluster = [], clusterEnd = -Infinity;
+  const flushCluster = () => {
+    if(!cluster.length) return;
+    const colEnds = []; // letzte Endzeit je bereits vergebener Spalte
+    cluster.forEach(item=>{
+      let col = colEnds.findIndex(end => end <= item.start);
+      if(col === -1){ col = colEnds.length; colEnds.push(item.end); }
+      else colEnds[col] = item.end;
+      item.col = col;
+    });
+    const cols = colEnds.length;
+    cluster.forEach(item=> result.push({ ...item, cols }));
+    cluster = [];
+  };
+  parsed.forEach(item=>{
+    if(cluster.length && item.start >= clusterEnd){ flushCluster(); clusterEnd = -Infinity; }
+    cluster.push(item);
+    clusterEnd = Math.max(clusterEnd, item.end);
+  });
+  flushCluster();
+  return result;
+}
+
 function renderWeek(){
   const ws = curWeekStart;
   const we = new Date(ws.getTime()+4*86400000);
@@ -1156,18 +1198,17 @@ function renderWeek(){
     const dateStr=`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
     const dayOps=fo.filter(o=>o.datum===dateStr);
     let chipsHTML='';
-    dayOps.forEach(op=>{
-      const hr=parseInt((op.uhrzeit||'08:00').split(':')[0]);
-      const mn=parseInt((op.uhrzeit||'08:00').split(':')[1]||0);
-      const startPx=((hr-7)*60+mn)*(60/60);
+    weekKollisionsLayout(dayOps).forEach(({op, start, cols, col})=>{
+      const startPx=start-7*60;
       const dur=parseInt(op.dauer)||60;
       const h=Math.max(dur*(60/60),28);
+      const widthPct=100/cols, leftPct=col*widthPct;
       const bg=chipBg(op), cl=chipColor(op);
       const prio=op.prioritaet==='notfall'?'🔴 ':op.prioritaet==='dringlich'?'🟠 ':'';
       const ob=ohneBogen(op);
       const bv=bogenVersendet(op);
       const wTitleTxt=`${op.patient||''} · ${op.diagnose||''} – ${op.prozedur||''}`;
-      chipsHTML+=`<button class="week-chip ${chipClass(op)}${ob?' ohne-bogen':''}" draggable="true" data-op-id="${op.id}" ondragstart="dragStartWeek(event,'${op.id}')" ondragend="dragEnd(event)" style="top:${startPx}px;height:${h}px;background:${bg};color:${cl}" onclick="event.stopPropagation();showDetail('${op.id}')" title="${esc(wTitleTxt)}${ob?' · ⚠ kein Anmeldebogen':''}${bv?' · Anmeldebogen versendet':''}">
+      chipsHTML+=`<button class="week-chip ${chipClass(op)}${ob?' ohne-bogen':''}" draggable="true" data-op-id="${op.id}" ondragstart="dragStartWeek(event,'${op.id}')" ondragend="dragEnd(event)" style="top:${startPx}px;height:${h}px;left:calc(${leftPct}% + 4px);width:calc(${widthPct}% - 8px);right:auto;background:${bg};color:${cl}" onclick="event.stopPropagation();showDetail('${op.id}')" title="${esc(wTitleTxt)}${ob?' · ⚠ kein Anmeldebogen':''}${bv?' · Anmeldebogen versendet':''}">
         ${bv?bogenVersendetBadge():''}
         <div class="wc-pat">${prio}${ob?'⚠ ':''}${esc(op.patient||'—')}</div>
         <div class="wc-proc">${esc(op.prozedur||op.diagnose||'OP')}</div>
