@@ -229,6 +229,13 @@ select.fill{border:none;border-bottom:1px solid var(--border-strong);background:
       <label class="cbx"><input type="radio" name="dring" value="dringlich"><span class="mark"></span>Dringlich</label>
       <label class="cbx"><input type="radio" name="dring" value="Notfall"><span class="mark"></span>Notfall</label>
     </div>
+    <div class="two-col">
+      <div class="field"><label>Kategorie Nebenerkrankungen (A/B/C)</label>
+        <select class="fill" id="f_nk" title="Schweregrad Nebenerkrankungen — Bedeutung je Abteilung">
+          <option value="">–</option><option value="A">A</option><option value="B">B</option><option value="C">C</option>
+        </select></div>
+      <div class="field"></div>
+    </div>
     <div class="field"><label>Diagnose *</label><textarea class="fill" id="f_diagnose" rows="1" placeholder="Diagnose"></textarea></div>
     <div class="two-col">
       <div class="field"><label>ICD-10</label><input class="fill" id="f_icd" placeholder="z. B. M96.0"></div>
@@ -661,7 +668,7 @@ function collect(){
     p_bkat:g('p_bkat'), p_wunschtermin:g('p_wunschtermin'),
     begleitperson:gc('c_begleitperson'), terminieren:gc('c_terminieren'),
     // Eingriff
-    dringlichkeit:radio('dring'), diagnose:g('f_diagnose'), icd:g('f_icd'), ops_code:g('f_ops'),
+    dringlichkeit:radio('dring'), nk_kategorie:g('f_nk'), diagnose:g('f_diagnose'), icd:g('f_icd'), ops_code:g('f_ops'),
     op1_text:g('f_op1_text'), op2_text:g('f_op2_text'),
     op_dauer:g('f_dauer'),
     lagerung:radio('lagerung'), ionm:gc('f_ionm'),
@@ -719,7 +726,7 @@ function apply(b){
   setV('p_kasse',b.p_kasse); setV('p_versnr',b.p_versnr); setV('p_kostentraeger',b.p_kostentraeger);
   setV('p_bkat',b.p_bkat); setV('p_wunschtermin',b.p_wunschtermin);
   setC('c_begleitperson',b.begleitperson); setC('c_terminieren',b.terminieren);
-  setR('dring',b.dringlichkeit);
+  setR('dring',b.dringlichkeit); setV('f_nk',b.nk_kategorie);
   setV('f_diagnose',b.diagnose); setV('f_icd',b.icd); setV('f_ops',b.ops_code);
   setV('f_op1_text',b.op1_text); setV('f_op2_text',b.op2_text);
   setV('f_dauer',b.op_dauer);
@@ -783,6 +790,11 @@ async function ladeBogen(id){
 function vorbelegenAusURL(){
   const q = new URLSearchParams(location.search);
   if(q.get('id')) return;                       // bestehender Bogen -> ladeAusURL()
+  if(q.get('warteliste')){                       // bewusst terminlos -> Warteliste
+    setState('Neuer Fall für die Warteliste — OP-Datum leer lassen, dann landet der Fall terminlos in der Warteliste.');
+    const el = document.getElementById('p_name'); if(el) el.focus();
+    return;
+  }
   const datum = q.get('datum');
   if(!datum) return;
   setV('f_opdatum', datum);
@@ -870,9 +882,14 @@ async function persist(){
     ...(vorhanden || {}),                       // Kalender-eigene Felder erhalten
     id: vorhanden ? vorhanden.id : 'op_'+bogen.id,
     bogen_id: bogen.id,
-    // Datum/Uhrzeit: beim Adoptieren gewinnt der bereits terminierte Kalenderstand
-    // (der bestätigte Slot), sonst der Bogen, solange er gefüllt ist.
-    datum: adoptiert ? (vorhanden.datum || bogen.op_datum) : (bogen.op_datum || (vorhanden && vorhanden.datum) || bogen.erstellt || ''),
+    /* Datum/Uhrzeit: beim Adoptieren gewinnt der bereits terminierte Kalenderstand
+       (der bestätigte Slot), sonst der Bogen, solange er gefüllt ist.
+       WICHTIG: bogen.erstellt (Formular-/Unterschriftsdatum, standardmäßig auf
+       "heute" vorbelegt) darf hier NICHT als Fallback dienen — sonst bekommt
+       ein Fall ganz ohne echtes OP-Datum fälschlich "heute" als Kalender-Datum
+       und landet als Phantomtermin auf dem heutigen Tag statt (wie gewollt)
+       terminlos in der Warteliste (Fund 2026-08-10: Warteliste blieb leer). */
+    datum: adoptiert ? (vorhanden.datum || bogen.op_datum) : (bogen.op_datum || (vorhanden && vorhanden.datum) || ''),
     uhrzeit: adoptiert ? (vorhanden.uhrzeit || bogen.uhrzeit || '08:00') : (bogen.uhrzeit || (vorhanden && vorhanden.uhrzeit) || '08:00'),
     // Felder, die dem Bogen gehören
     patient: opPatientLabel(),
@@ -884,27 +901,31 @@ async function persist(){
     dauer: bogen.op_dauer || '',
     implantate: bogen.implantat,
     prioritaet: (bogen.dringlichkeit||'Elektiv').toLowerCase(),
+    nk_kategorie: bogen.nk_kategorie || '',
     monitoring: [bogen.lagerung? 'Lagerung: '+bogen.lagerung : '', bogen.ionm? 'IONM' : ''].filter(Boolean).join(' · '),
     notiz: notizTeile.join(' · ')
   };
   // Nur beim allerersten Anlegen vorbelegen — danach gehören sie dem Kalender.
   if(!vorhanden){ op.status='geplant'; op.saal=''; op.anaesthesie=''; op.op1='Dr. Mosafer'; op.op2=''; }
 
+  /* Eintrag IMMER anlegen, auch ohne OP-Datum — sonst existiert ein Fall ohne
+     Termin nirgends (weder Kalender noch Warteliste), obwohl der Bogen selbst
+     gespeichert ist. Ein leeres op.datum ist genau die Konvention, mit der
+     auch der CSV-Import (import.html) Warteliste-Fälle anlegt (istWarteliste
+     = o => !o.datum). */
   let opMsg = '';
-  if(op.datum){
-    const { error:e2 } = await sb.from('op_eingriffe').upsert(op);
-    if(e2) opMsg = '\n\n⚠ OP-Plan-Eintrag nicht angelegt: '+e2.message;
-    else {
-      // Beim Adoptieren gewinnt der Kalender-Slot -> Bogen (PDF) darauf angleichen,
-      // damit Termin auf Bogen und Kalender nicht auseinanderlaufen.
-      if(adoptiert && (bogen.op_datum!==op.datum || bogen.uhrzeit!==op.uhrzeit)){
-        await sb.from('anmeldeboegen').update({op_datum:op.datum, uhrzeit:op.uhrzeit}).eq('id', bogen.id);
-      }
-      opMsg = '\n\nOP-Plan-Eintrag „'+op.patient+'" für '+op.datum
-            + (adoptiert ? ' mit bestehendem Termin verknüpft.' : (vorhanden ? ' aktualisiert.' : ' angelegt.'));
+  const { error:e2 } = await sb.from('op_eingriffe').upsert(op);
+  if(e2) opMsg = '\n\n⚠ OP-Plan-Eintrag nicht angelegt: '+e2.message;
+  else {
+    // Beim Adoptieren gewinnt der Kalender-Slot -> Bogen (PDF) darauf angleichen,
+    // damit Termin auf Bogen und Kalender nicht auseinanderlaufen.
+    if(adoptiert && (bogen.op_datum!==op.datum || bogen.uhrzeit!==op.uhrzeit)){
+      await sb.from('anmeldeboegen').update({op_datum:op.datum, uhrzeit:op.uhrzeit}).eq('id', bogen.id);
     }
-  } else {
-    opMsg = '\n\nHinweis: Kein OP-Datum → noch kein Eintrag im OP-Plan-Kalender.';
+    opMsg = op.datum
+      ? '\n\nOP-Plan-Eintrag „'+op.patient+'" für '+op.datum
+          + (adoptiert ? ' mit bestehendem Termin verknüpft.' : (vorhanden ? ' aktualisiert.' : ' angelegt.'))
+      : '\n\nAls Warteliste-Fall angelegt (noch kein OP-Termin) — sichtbar im OP-Plan unter „Warteliste".';
   }
   setState('Gespeichert ✓');
   return {ok:true, opMsg, bogen};
@@ -1005,6 +1026,7 @@ function baueWordHtml(b){
   const dringInner =
       '<div style="font-size:10pt;margin-bottom:4px">'
         + ['Elektiv','dringlich','Notfall'].map(v=>wMark(v, b.dringlichkeit===v)).join('') + '</div>'
+    + (b.nk_kategorie ? wLine('Kategorie Nebenerkrankungen (A/B/C)', b.nk_kategorie) : '')
     + wLine('Diagnose', b.diagnose)
     + wPairTable(wPair('ICD-10', b.icd, 'OPS-Code', b.ops_code))
     + wLine('1. Operation', b.op1_text)

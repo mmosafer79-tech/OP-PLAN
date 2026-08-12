@@ -390,6 +390,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
   <div class="dp-body" id="dp-body"></div>
   <div class="dp-actions">
     <button class="dp-btn dp-edit" id="dp-edit-btn" onclick="editFromPanel()">✏ Bearbeiten</button>
+    <button class="dp-btn" id="dp-wl-btn" style="display:none;background:var(--bg);border:1px solid var(--border);color:var(--text-muted)" onclick="panelAufWarteliste()" title="OP-Termin entfernen — Fall wandert zurück in die Warteliste">↩ Auf Warteliste</button>
     <button class="dp-btn dp-del" id="dp-del-btn" onclick="deleteFromPanel()">🗑 Löschen</button>
   </div>
 </div>
@@ -514,6 +515,15 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
           <option value="elektiv">Elektiv</option>
           <option value="dringlich">Dringlich</option>
           <option value="notfall">Notfall</option>
+        </select>
+      </div>
+      <div class="f">
+        <label>Kategorie (Nebenerkrankungen)</label>
+        <select id="f_nk" title="Schweregrad Nebenerkrankungen — Bedeutung je Abteilung">
+          <option value="">–</option>
+          <option value="A">A</option>
+          <option value="B">B</option>
+          <option value="C">C</option>
         </select>
       </div>
       <div class="f full">
@@ -952,6 +962,31 @@ function render(){
    die OP-Zeit verfälschen. */
 const istWarteliste = o => !o.datum;
 
+/* ── NEBENERKRANKUNGS-KATEGORIE A/B/C ──────────────────────────────────────
+   Bewusst NEUTRAL: A/B/C markiert nur den Schweregrad der Nebenerkrankungen,
+   die konkrete Bedeutung legt jede beteiligte Abteilung selbst fest. Fließt in
+   keine Statistik/Zählung ein. Persistiert in op_eingriffe.nk_kategorie
+   (Migration op_eingriffe_v2.sql). */
+const NK_KATS = ['A','B','C'];
+function nkBadge(v){
+  if(!v) return '<span style="color:var(--text-faint)">–</span>';
+  const c = {A:['#e7f6ec','#1a7f37'], B:['#fff4e0','#b5820b'], C:['#fdecec','#c62828']}[v] || ['var(--bg)','var(--text-muted)'];
+  return `<span title="Kategorie ${esc(v)}" style="display:inline-block;min-width:20px;text-align:center;font-weight:700;padding:2px 7px;border-radius:6px;background:${c[0]};color:${c[1]}">${esc(v)}</span>`;
+}
+function nkSelect(id,v){
+  const opts = ['<option value="">–</option>']
+    .concat(NK_KATS.map(k=>`<option value="${k}"${v===k?' selected':''}>${k}</option>`)).join('');
+  return `<select class="filter-select" style="padding:4px 6px;width:58px" title="Kategorie Nebenerkrankungen" onchange="wlSetKat('${id}',this.value)">${opts}</select>`;
+}
+async function wlSetKat(id,val){
+  const op = ops.find(o=>o.id===id); if(!op) return;
+  if(!darfAnfassen(op)){ alert('🔒 Bestätigter Fall — Änderungen nur durch Dr. Mosafer.'); render(); return; }
+  op.nk_kategorie = val;
+  saveLocal();
+  await upsertRemote(op);
+  renderWlCount();
+}
+
 function renderWlCount(){
   const el = document.getElementById('wlCount');
   if(!el) return;
@@ -969,9 +1004,13 @@ function renderWarteliste(){
     });
 
   if(!fo.length){
+    const btn = darfSchreiben() ? `<div style="margin-top:16px">
+        <button class="hbtn gold" style="display:inline-flex" onclick="openWarteliste()" title="Neuen Fall ohne OP-Termin anmelden — landet in der Warteliste">➕ Patient auf Warteliste setzen</button>
+      </div>` : '';
     document.getElementById('calWrap').innerHTML =
       `<div style="padding:40px;text-align:center;color:var(--text-faint);font-size:13px">
-         Kein Fall ohne Termin. Fälle ohne OP-Datum landen hier — z.&nbsp;B. aus der importierten MFA-Liste.
+         Kein Fall ohne Termin. Fälle ohne OP-Datum landen hier — z.&nbsp;B. aus der importierten MFA-Liste
+         oder über „Patient auf Warteliste setzen".${btn}
        </div>`;
     return;
   }
@@ -983,6 +1022,7 @@ function renderWarteliste(){
                : o.prioritaet==='dringlich' ? '<span class="dp-badge badge-dringlich">🟠 Dringlich</span>' : '';
     return `<tr>
       <td style="cursor:pointer" onclick="showDetail('${o.id}')"><b>${esc(o.patient||'-')}</b> ${prio}</td>
+      <td>${schreib ? nkSelect(o.id, o.nk_kategorie) : nkBadge(o.nk_kategorie)}</td>
       <td style="cursor:pointer" onclick="showDetail('${o.id}')">${esc(o.diagnose||'')}</td>
       <td style="cursor:pointer" onclick="showDetail('${o.id}')">${esc(o.prozedur||'')}</td>
       <td>${esc(o.seite||'')}</td>
@@ -996,11 +1036,16 @@ function renderWarteliste(){
     </tr>`;
   }).join('');
 
+  const toolbar = schreib ? `<div style="padding:10px 12px;display:flex;justify-content:flex-end">
+      <button class="hbtn gold" style="display:inline-flex" onclick="openWarteliste()" title="Neuen Fall ohne OP-Termin anmelden — landet in der Warteliste">➕ Patient auf Warteliste setzen</button>
+    </div>` : '';
   document.getElementById('calWrap').innerHTML = `
+    ${toolbar}
     <div style="overflow-x:auto">
     <table style="width:100%;border-collapse:collapse;font-size:12.5px;background:var(--surface)">
       <thead><tr style="background:var(--bg);color:var(--text-muted);text-align:left">
-        <th style="padding:8px 10px">Patient</th><th style="padding:8px 10px">Diagnose</th>
+        <th style="padding:8px 10px">Patient</th><th style="padding:8px 10px" title="Kategorie Nebenerkrankungen (A/B/C)">Kat.</th>
+        <th style="padding:8px 10px">Diagnose</th>
         <th style="padding:8px 10px">Eingriff</th><th style="padding:8px 10px">Seite</th>
         <th style="padding:8px 10px">Dauer</th><th style="padding:8px 10px">angemeldet</th>
         <th style="padding:8px 10px">Termin</th>
@@ -1361,6 +1406,7 @@ function showDetail(id){
   document.getElementById('dp-date').textContent=(d?d.toLocaleDateString('de-DE',{weekday:'long',day:'2-digit',month:'long',year:'numeric'}):'-')+(op.uhrzeit?' · '+op.uhrzeit+' Uhr':'');
   document.getElementById('dp-body').innerHTML=`
     <div class="dp-row"><div class="dp-lbl">Status / Priorität</div><div class="dp-val">${badge(op.status)}${pbadge(op.prioritaet)}</div></div>
+    ${op.nk_kategorie?`<div class="dp-row"><div class="dp-lbl">Kategorie (Nebenerkr.)</div><div class="dp-val">${nkBadge(op.nk_kategorie)}</div></div>`:''}
     ${row('Patient-ID',op.patient)}
     ${row('Diagnose',op.diagnose)}
     ${row('Saal',op.saal)} ${row('Dauer',op.dauer?op.dauer+' min':null)}
@@ -1382,6 +1428,9 @@ function showDetail(id){
   const anfassbar = darfAnfassen(op);
   document.getElementById('dp-edit-btn').style.display = anfassbar ? '' : 'none';
   document.getElementById('dp-del-btn').style.display  = anfassbar ? '' : 'none';
+  // „Auf Warteliste" nur für bereits terminierte, anfassbare Fälle (Termin entfernbar).
+  const wlBtn = document.getElementById('dp-wl-btn');
+  if(wlBtn) wlBtn.style.display = (anfassbar && op.datum) ? '' : 'none';
   if(!anfassbar && darfSchreiben()){
     document.getElementById('dp-body').insertAdjacentHTML('beforeend',
       `<div style="margin-top:10px;background:var(--green-bg);border:1px solid var(--green-chip);border-radius:6px;padding:8px 11px;font-size:12px;color:var(--green)">🔒 Bestätigter Fall — Änderungen nur durch Dr.&nbsp;Mosafer.</div>`);
@@ -1445,6 +1494,21 @@ async function zeigeBogen(op){
 
 function closeDetail(){ document.getElementById('detailPanel').classList.remove('open'); detailId=null; }
 function editFromPanel(){ if(detailId){const id=detailId;closeDetail();openEdit(id);} }
+
+/* Terminierten Fall zurück in die Warteliste holen: OP-Datum/Uhrzeit leeren
+   (Konvention istWarteliste = o => !o.datum) und im hinterlegten Anmeldebogen
+   nachziehen. Gegenstück zu wlTerminieren(). */
+async function panelAufWarteliste(){
+  const op = ops.find(o=>o.id===detailId); if(!op) return;
+  if(!darfAnfassen(op)){ alert('🔒 Bestätigter Fall — Änderungen nur durch Dr. Mosafer.'); return; }
+  if(!confirm('OP-Termin entfernen? Der Fall wandert zurück in die Warteliste.')) return;
+  op.datum=''; op.uhrzeit='';
+  saveLocal();
+  closeDetail();
+  render();
+  await upsertRemote(op);
+  await syncTerminZuBogen(op);
+}
 function deleteFromPanel() {
   if (!detailId || !darfSchreiben()) return;
   const _op = ops.find(o => o.id === detailId);
@@ -1476,6 +1540,15 @@ function openNewAt(dateStr,timeStr){
   if(!darfSchreiben()) return;
   const q = '?datum='+encodeURIComponent(dateStr)+(timeStr?'&uhrzeit='+encodeURIComponent(timeStr):'');
   location.href = 'anmeldebogen.html'+q;
+}
+
+/* Bewusst „auf Warteliste": Anmeldebogen OHNE OP-Datum öffnen. Bleibt das
+   OP-Datum beim Speichern leer, landet der Fall terminlos in der Warteliste
+   (istWarteliste = o => !o.datum). Der Parameter warteliste=1 blendet im Bogen
+   nur einen erklärenden Hinweis ein. */
+function openWarteliste(){
+  if(!darfSchreiben()) return;
+  location.href = 'anmeldebogen.html?warteliste=1';
 }
 
 function openEdit(id){
@@ -1510,6 +1583,7 @@ function openEdit(id){
   s('f_op2',op.op2);
   s('f_status',op.status||'geplant');
   s('f_prioritaet',op.prioritaet||'elektiv');
+  s('f_nk',op.nk_kategorie);
   s('f_monitoring',op.monitoring);
   s('f_notiz',op.notiz);
   document.getElementById('overlay').classList.add('open');
@@ -1531,6 +1605,7 @@ function saveOP() {
     anaesthesie: g('f_anaesthesie'), implantate: g('f_implantate'),
     op1: g('f_op1'), op2: g('f_op2'),
     status: g('f_status'), prioritaet: g('f_prioritaet'),
+    nk_kategorie: g('f_nk'),
     monitoring: g('f_monitoring'), notiz: g('f_notiz')
   };
   if (!op.datum) { alert('Bitte Datum angeben.'); return; }
