@@ -225,9 +225,13 @@ select.fill{border:none;border-bottom:1px solid var(--border-strong);background:
   <div class="block">
     <div class="bt">Dringlichkeit &amp; Eingriff</div>
     <div class="inline-cbx" style="margin-bottom:6px">
-      <label class="cbx"><input type="radio" name="dring" value="Elektiv" checked><span class="mark"></span>Elektiv</label>
-      <label class="cbx"><input type="radio" name="dring" value="dringlich"><span class="mark"></span>Dringlich</label>
-      <label class="cbx"><input type="radio" name="dring" value="Notfall"><span class="mark"></span>Notfall</label>
+      <label class="cbx"><input type="radio" name="dring" value="Elektiv" checked onchange="syncWarteliste()"><span class="mark"></span>Elektiv</label>
+      <label class="cbx"><input type="radio" name="dring" value="dringlich" onchange="syncWarteliste()"><span class="mark"></span>Dringlich</label>
+      <label class="cbx"><input type="radio" name="dring" value="Notfall" onchange="syncWarteliste()"><span class="mark"></span>Notfall</label>
+      <label class="cbx"><input type="radio" name="dring" value="Warteliste" onchange="syncWarteliste()"><span class="mark"></span>Warteliste</label>
+    </div>
+    <div id="wlHint" style="display:none;font-size:9pt;color:#8a6d1a;background:#fff8e6;border:1px solid #f0e0a8;border-radius:6px;padding:5px 9px;margin-bottom:6px">
+      Warteliste gewählt: Der Fall wird <b>ohne OP-Termin</b> gespeichert und erscheint im OP-Plan unter „Warteliste". Das OP-Datum ist deshalb deaktiviert.
     </div>
     <div class="two-col">
       <div class="field"><label>Kategorie Nebenerkrankungen (A/B/C)</label>
@@ -259,7 +263,8 @@ select.fill{border:none;border-bottom:1px solid var(--border-strong);background:
     <div class="sep"></div>
     <div class="inline-cbx">
       <span class="tag">Neuromonitoring:</span>
-      <label class="cbx"><input type="checkbox" id="f_ionm"><span class="mark"></span>IONM erforderlich</label>
+      <label class="cbx"><input type="radio" name="ionm_req" value="erforderlich"><span class="mark"></span>IONM erforderlich</label>
+      <label class="cbx"><input type="radio" name="ionm_req" value="nicht_erforderlich"><span class="mark"></span>kein IONM erforderlich</label>
     </div>
     <div class="sep"></div>
     <div class="inline-cbx">
@@ -594,6 +599,20 @@ const setV = (id,v)=>{ const el=document.getElementById(id); if(el) el.value = v
 const setC = (id,v)=>{ const el=document.getElementById(id); if(el) el.checked = !!v; };
 const setR = (name,v)=>{ if(!v) return; const el=document.querySelector(`input[name="${name}"][value="${v}"]`); if(el) el.checked=true; };
 
+/* „Warteliste"-Dringlichkeit: OP-Datum/Uhrzeit sperren (Fall soll bewusst
+   terminlos bleiben) und Hinweis einblenden. Bei jeder Auswahländerung und nach
+   dem Laden eines Bogens aufrufen. */
+function syncWarteliste(){
+  const wl = radio('dring') === 'Warteliste';
+  ['f_opdatum','f_uhrzeit'].forEach(id=>{
+    const el = document.getElementById(id); if(!el) return;
+    el.disabled = wl;
+    el.style.opacity = wl ? '0.45' : '';
+    if(wl) el.value = '';
+  });
+  const h = document.getElementById('wlHint'); if(h) h.style.display = wl ? 'block' : 'none';
+}
+
 /* Empfänger für „Speichern & Versenden".
    Funktionsadresse des Zentralen Belegungsmanagements Traunstein — belegt aus
    den KSOB-Verteilern (OP-Kommission, Saalkontingente Q3/2026), noch nicht vom
@@ -671,7 +690,7 @@ function collect(){
     dringlichkeit:radio('dring'), nk_kategorie:g('f_nk'), diagnose:g('f_diagnose'), icd:g('f_icd'), ops_code:g('f_ops'),
     op1_text:g('f_op1_text'), op2_text:g('f_op2_text'),
     op_dauer:g('f_dauer'),
-    lagerung:radio('lagerung'), ionm:gc('f_ionm'),
+    lagerung:radio('lagerung'), ionm_status:radio('ionm_req'), ionm:(radio('ionm_req')==='erforderlich'),
     ab_single_shot:gc('ab_single'), ab_cefuroxim:gc('ab_cefu'), ab_antibiose_sonst:g('ab_sonst'),
     implantat:g('f_implantat'), implantat_bestellen:gc('f_impl_best'), seite:g('f_seite'),
     op_datum:g('f_opdatum'), uhrzeit:g('f_uhrzeit'),
@@ -726,11 +745,13 @@ function apply(b){
   setV('p_kasse',b.p_kasse); setV('p_versnr',b.p_versnr); setV('p_kostentraeger',b.p_kostentraeger);
   setV('p_bkat',b.p_bkat); setV('p_wunschtermin',b.p_wunschtermin);
   setC('c_begleitperson',b.begleitperson); setC('c_terminieren',b.terminieren);
-  setR('dring',b.dringlichkeit); setV('f_nk',b.nk_kategorie);
+  setR('dring',b.dringlichkeit); setV('f_nk',b.nk_kategorie); syncWarteliste();
   setV('f_diagnose',b.diagnose); setV('f_icd',b.icd); setV('f_ops',b.ops_code);
   setV('f_op1_text',b.op1_text); setV('f_op2_text',b.op2_text);
   setV('f_dauer',b.op_dauer);
-  setR('lagerung',b.lagerung); setC('f_ionm',b.ionm);
+  setR('lagerung',b.lagerung);
+  // Altbestand ohne ionm_status: aus Boolean ableiten (true -> erforderlich; sonst offen lassen).
+  setR('ionm_req', b.ionm_status || (b.ionm ? 'erforderlich' : ''));
   setC('ab_single',b.ab_single_shot); setC('ab_cefu',b.ab_cefuroxim); setV('ab_sonst',b.ab_antibiose_sonst);
   setV('f_implantat',b.implantat); setC('f_impl_best',b.implantat_bestellen); setV('f_seite',b.seite);
   setV('f_opdatum',b.op_datum); setV('f_uhrzeit',b.uhrzeit);
@@ -791,7 +812,8 @@ function vorbelegenAusURL(){
   const q = new URLSearchParams(location.search);
   if(q.get('id')) return;                       // bestehender Bogen -> ladeAusURL()
   if(q.get('warteliste')){                       // bewusst terminlos -> Warteliste
-    setState('Neuer Fall für die Warteliste — OP-Datum leer lassen, dann landet der Fall terminlos in der Warteliste.');
+    setR('dring','Warteliste'); syncWarteliste();
+    setState('Neuer Fall für die Warteliste — wird ohne OP-Termin gespeichert.');
     const el = document.getElementById('p_name'); if(el) el.focus();
     return;
   }
@@ -878,6 +900,10 @@ async function persist(){
     adoptiert = !!vorhanden;
   }
 
+  /* „Warteliste" als Dringlichkeit ist eine bewusste Terminlos-Ansage: der Fall
+     wird OHNE OP-Datum gespeichert (istWarteliste = o => !o.datum im OP-Plan) und
+     die Priorität neutral (elektiv) gesetzt — „Warteliste" ist keine Prioritätsstufe. */
+  const aufWarteliste = bogen.dringlichkeit === 'Warteliste';
   const op = {
     ...(vorhanden || {}),                       // Kalender-eigene Felder erhalten
     id: vorhanden ? vorhanden.id : 'op_'+bogen.id,
@@ -889,8 +915,8 @@ async function persist(){
        ein Fall ganz ohne echtes OP-Datum fälschlich "heute" als Kalender-Datum
        und landet als Phantomtermin auf dem heutigen Tag statt (wie gewollt)
        terminlos in der Warteliste (Fund 2026-08-10: Warteliste blieb leer). */
-    datum: adoptiert ? (vorhanden.datum || bogen.op_datum) : (bogen.op_datum || (vorhanden && vorhanden.datum) || ''),
-    uhrzeit: adoptiert ? (vorhanden.uhrzeit || bogen.uhrzeit || '08:00') : (bogen.uhrzeit || (vorhanden && vorhanden.uhrzeit) || '08:00'),
+    datum: aufWarteliste ? '' : (adoptiert ? (vorhanden.datum || bogen.op_datum) : (bogen.op_datum || (vorhanden && vorhanden.datum) || '')),
+    uhrzeit: aufWarteliste ? '' : (adoptiert ? (vorhanden.uhrzeit || bogen.uhrzeit || '08:00') : (bogen.uhrzeit || (vorhanden && vorhanden.uhrzeit) || '08:00')),
     // Felder, die dem Bogen gehören
     patient: opPatientLabel(),
     diagnose: bogen.diagnose,
@@ -900,7 +926,7 @@ async function persist(){
     seite: bogen.seite,
     dauer: bogen.op_dauer || '',
     implantate: bogen.implantat,
-    prioritaet: (bogen.dringlichkeit||'Elektiv').toLowerCase(),
+    prioritaet: aufWarteliste ? 'elektiv' : (bogen.dringlichkeit||'Elektiv').toLowerCase(),
     nk_kategorie: bogen.nk_kategorie || '',
     monitoring: [bogen.lagerung? 'Lagerung: '+bogen.lagerung : '', bogen.ionm? 'IONM' : ''].filter(Boolean).join(' · '),
     notiz: notizTeile.join(' · ')
@@ -1025,7 +1051,7 @@ function baueWordHtml(b){
   // ---------- Dringlichkeit & Eingriff ----------
   const dringInner =
       '<div style="font-size:10pt;margin-bottom:4px">'
-        + ['Elektiv','dringlich','Notfall'].map(v=>wMark(v, b.dringlichkeit===v)).join('') + '</div>'
+        + ['Elektiv','dringlich','Notfall','Warteliste'].map(v=>wMark(v, b.dringlichkeit===v)).join('') + '</div>'
     + (b.nk_kategorie ? wLine('Kategorie Nebenerkrankungen (A/B/C)', b.nk_kategorie) : '')
     + wLine('Diagnose', b.diagnose)
     + wPairTable(wPair('ICD-10', b.icd, 'OPS-Code', b.ops_code))
@@ -1034,7 +1060,7 @@ function baueWordHtml(b){
     + wPairTable(wPair('OP-Dauer (min)', b.op_dauer, 'Seite', b.seite))
     + '<div style="font-size:10pt;margin:6px 0 2px"><span style="color:#555;font-size:9pt">Lagerung</span><br>'
         + ['Bauchlage','Rücken','Seitenlagerung','Halotraktion'].map(v=>wMark(v, b.lagerung===v)).join('') + '</div>'
-    + '<div style="font-size:10pt;margin:4px 0">'+wMark('IONM erforderlich', b.ionm)+'</div>'
+    + '<div style="font-size:10pt;margin:4px 0">'+wMark('IONM erforderlich', b.ionm_status==='erforderlich' || (!b.ionm_status && b.ionm))+wMark('kein IONM erforderlich', b.ionm_status==='nicht_erforderlich')+'</div>'
     + '<div style="font-size:10pt;margin:4px 0"><span style="color:#555;font-size:9pt">Antibiose</span><br>'
         + wMark('Single shot', b.ab_single_shot) + wMark('Cefuroxim', b.ab_cefuroxim) + '</div>'
     + wLine('Antibiose sonstiges', b.ab_antibiose_sonst)
@@ -1361,7 +1387,8 @@ function mailOeffnen(){
   L.push('Diagnose: '+(b.diagnose||'-'));
   L.push('Operation: '+[b.op1_text,b.op2_text].filter(Boolean).join(' + '));
   if(b.lagerung)  L.push('Lagerung: '+b.lagerung);
-  if(b.ionm)      L.push('Neuromonitoring: IONM erforderlich');
+  if(b.ionm_status==='erforderlich' || (!b.ionm_status && b.ionm)) L.push('Neuromonitoring: IONM erforderlich');
+  else if(b.ionm_status==='nicht_erforderlich') L.push('Neuromonitoring: kein IONM erforderlich');
   if(b.op_dauer)  L.push('OP-Dauer: ca. '+b.op_dauer+' min');
   if(b.implantat) L.push('Implantat: '+b.implantat+(b.implantat_bestellen?' (muss bestellt werden → sep. Bogen)':''));
   if(b.op_datum)  L.push('OP-Datum: '+b.op_datum+(b.uhrzeit?' '+b.uhrzeit:''));

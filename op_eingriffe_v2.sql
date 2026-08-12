@@ -22,3 +22,10 @@
 
 ALTER TABLE op_eingriffe ADD COLUMN IF NOT EXISTS nk_kategorie TEXT;
 ALTER TABLE anmeldeboegen ADD COLUMN IF NOT EXISTS nk_kategorie TEXT;
+
+-- Neuromonitoring als 3-Zustand (statt nur „an/aus"): explizit auch
+-- „kein IONM erforderlich" dokumentierbar. Werte: 'erforderlich' /
+-- 'nicht_erforderlich' / '' (unbestimmt). Die alte Boolean-Spalte
+-- anmeldeboegen.ionm bleibt für Rückwärtskompatibilität erhalten und wird
+-- beim Speichern weiter mitgeführt (ionm = true, wenn Status 'erforderlich').
+ALTER TABLE anmeldeboegen ADD COLUMN IF NOT EXISTS ionm_status TEXT;
