@@ -546,7 +546,9 @@ function setStandort(s){
 /* ---- Supabase (gleiche Instanz wie OP-Plan) ---- */
 const SUPABASE_URL  = 'https://rcchxtczknnqqyavmxzv.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjY2h4dGN6a25ucXF5YXZteHp2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAwNDQxODUsImV4cCI6MjA5NTYyMDE4NX0.U-JHBVq8uzdvicayfIuSK4aG12dMUkh6i5z8Oy5Yea4';
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
+  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false }
+});
 
 let currentId = null;   // id des aktuell geladenen/gespeicherten Bogens
 
@@ -590,6 +592,31 @@ async function agSignIn(){
   ladeAusURL();
 }
 sb.auth.onAuthStateChange(()=>checkAuth());
+
+// ── SESSION-ROBUSTHEIT (gleicher Schutz wie index.html) ─────────────────────
+// JWT läuft nach ~1 h ab; in PWA / nach Ruhezustand pausiert der Auto-Refresh.
+// Beim Zurückkehren ins Fenster Refresh anstoßen; bei Auth-Fehler einmal Refresh
+// + Retry, danach ehrlich als Fehler behandeln (kein falsches „gespeichert").
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') sb.auth.startAutoRefresh();
+  else sb.auth.stopAutoRefresh();
+});
+function istAuthFehler(error){
+  if(!error) return false;
+  const s = error.status || error.code;
+  const m = (error.message||'').toLowerCase();
+  return s===401 || s==='PGRST301' || m.includes('jwt') || m.includes('expired') ||
+         m.includes('row-level security') || m.includes('row level security');
+}
+// Führt eine Schreib-Operation aus; bei Auth-Fehler genau ein Refresh + Retry.
+async function schreibMit(opFn){
+  let res = await opFn();
+  if(res && res.error && istAuthFehler(res.error)){
+    const { data:{ session } } = await sb.auth.refreshSession();
+    if(session) res = await opFn();
+  }
+  return res;
+}
 
 /* ---------- Helpers ---------- */
 const g  = id => (document.getElementById(id)?.value ?? '').trim();
@@ -857,8 +884,17 @@ async function persist(){
   setState('Speichere …');
 
   // 1) Vollständiger Bogen (Klarname) -> Tabelle anmeldeboegen
-  const { error:e1 } = await sb.from('anmeldeboegen').upsert(bogen);
-  if(e1){ setState(''); alert('Fehler beim Speichern des Bogens:\n'+e1.message); return {ok:false}; }
+  const { error:e1 } = await schreibMit(() => sb.from('anmeldeboegen').upsert(bogen));
+  if(e1){
+    setState('');
+    if(istAuthFehler(e1)){
+      alert('Sitzung abgelaufen — bitte neu anmelden. Der Bogen wurde NICHT gespeichert.');
+      ROLLE=null; checkAuth();
+    } else {
+      alert('Fehler beim Speichern des Bogens:\n'+e1.message);
+    }
+    return {ok:false};
+  }
 
   // 2) OP-Plan-Eintrag -> op_eingriffe (via bogen_id fest verknüpft)
   const notizTeile = [absetzenText(), diagnostikText()? 'Diagnostik: '+diagnostikText():'',
@@ -940,19 +976,29 @@ async function persist(){
      auch der CSV-Import (import.html) Warteliste-Fälle anlegt (istWarteliste
      = o => !o.datum). */
   let opMsg = '';
-  const { error:e2 } = await sb.from('op_eingriffe').upsert(op);
-  if(e2) opMsg = '\n\n⚠ OP-Plan-Eintrag nicht angelegt: '+e2.message;
-  else {
-    // Beim Adoptieren gewinnt der Kalender-Slot -> Bogen (PDF) darauf angleichen,
-    // damit Termin auf Bogen und Kalender nicht auseinanderlaufen.
-    if(adoptiert && (bogen.op_datum!==op.datum || bogen.uhrzeit!==op.uhrzeit)){
-      await sb.from('anmeldeboegen').update({op_datum:op.datum, uhrzeit:op.uhrzeit}).eq('id', bogen.id);
+  const { error:e2 } = await schreibMit(() => sb.from('op_eingriffe').upsert(op));
+  /* Früher wurde e2 nur als „⚠"-Zeile an die Erfolgsmeldung gehängt und trotzdem
+     {ok:true} gemeldet — ein an der RLS/an abgelaufenem Token gescheiterter
+     Fall (typisch: Warteliste-Speichern auf stalem Token) sah damit wie
+     „gespeichert" aus, tauchte aber nie im OP-Plan auf. Jetzt harter Fehler. */
+  if(e2){
+    setState('');
+    if(istAuthFehler(e2)){
+      alert('Sitzung abgelaufen — bitte neu anmelden.\n\nDer Bogen wurde gespeichert, aber der Fall erscheint NICHT im OP-Plan/der Warteliste. Bitte nach dem Anmelden erneut speichern.');
+      ROLLE=null; checkAuth();
+    } else {
+      alert('OP-Plan-Eintrag konnte nicht gespeichert werden:\n'+e2.message+'\n\nDer Bogen wurde gespeichert, aber der Fall erscheint NICHT im OP-Plan/der Warteliste. Bitte erneut speichern.');
     }
-    opMsg = op.datum
-      ? '\n\nOP-Plan-Eintrag „'+op.patient+'" für '+op.datum
-          + (adoptiert ? ' mit bestehendem Termin verknüpft.' : (vorhanden ? ' aktualisiert.' : ' angelegt.'))
-      : '\n\nAls Warteliste-Fall angelegt (noch kein OP-Termin) — sichtbar im OP-Plan unter „Warteliste".';
+    return {ok:false, opMsg:'', bogen};
   }
+  // Erfolg: beim Adoptieren gewinnt der Kalender-Slot -> Bogen (PDF) angleichen.
+  if(adoptiert && (bogen.op_datum!==op.datum || bogen.uhrzeit!==op.uhrzeit)){
+    await sb.from('anmeldeboegen').update({op_datum:op.datum, uhrzeit:op.uhrzeit}).eq('id', bogen.id);
+  }
+  opMsg = op.datum
+    ? '\n\nOP-Plan-Eintrag „'+op.patient+'" für '+op.datum
+        + (adoptiert ? ' mit bestehendem Termin verknüpft.' : (vorhanden ? ' aktualisiert.' : ' angelegt.'))
+    : '\n\nAls Warteliste-Fall angelegt (noch kein OP-Termin) — sichtbar im OP-Plan unter „Warteliste".';
   setState('Gespeichert ✓');
   return {ok:true, opMsg, bogen};
 }

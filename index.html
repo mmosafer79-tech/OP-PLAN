@@ -623,7 +623,9 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 // ── SUPABASE ───────────────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://rcchxtczknnqqyavmxzv.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjY2h4dGN6a25ucXF5YXZteHp2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAwNDQxODUsImV4cCI6MjA5NTYyMDE4NX0.U-JHBVq8uzdvicayfIuSK4aG12dMUkh6i5z8Oy5Yea4';
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
+  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false }
+});
 
 // ── AUTH ───────────────────────────────────────────────────────────────────
 async function checkAuth() {
@@ -642,6 +644,7 @@ function showLogin() {
 }
 
 function showApp(user) {
+  _abgelaufenGemeldet = false;
   document.getElementById('loginScreen').style.display = 'none';
   if (user) document.getElementById('userEmail').textContent = user.email;
 }
@@ -686,6 +689,58 @@ async function signOut() {
 sb.auth.onAuthStateChange((event, session) => {
   if (event === 'SIGNED_OUT') { ops = []; abwesenheiten = []; ROLLE = null; showLogin(); }
 });
+
+// ── SESSION-ROBUSTHEIT ──────────────────────────────────────────────────────
+// Der Access-Token (JWT) läuft nach ~1 h ab. In einer installierten PWA oder
+// nach Ruhezustand des Macs pausiert der Auto-Refresh-Timer -> Schreibzugriffe
+// scheitern still an der RLS. Deshalb: beim Zurückkehren ins Fenster Refresh
+// anstoßen, bei Auth-Fehlern einmal automatisch erneuern und sonst neu anmelden.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') { sb.auth.startAutoRefresh(); ensureFreshSession(); }
+  else sb.auth.stopAutoRefresh();
+});
+
+async function ensureFreshSession() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { sitzungAbgelaufen(); return false; }
+  return true;
+}
+
+function istAuthFehler(error) {
+  if (!error) return false;
+  const s = error.status || error.code;
+  const m = (error.message || '').toLowerCase();
+  return s === 401 || s === 'PGRST301' || m.includes('jwt') || m.includes('expired') ||
+         m.includes('row-level security') || m.includes('row level security');
+}
+
+let _abgelaufenGemeldet = false;
+function sitzungAbgelaufen() {
+  if (_abgelaufenGemeldet) return;
+  _abgelaufenGemeldet = true;
+  alert('Deine Sitzung ist abgelaufen. Bitte melde dich neu an — deine letzte Eingabe wurde noch NICHT gespeichert.');
+  ROLLE = null;
+  showLogin();
+}
+
+// Führt eine Schreib-Operation aus. Bei Auth-Fehler genau ein Refresh + Retry.
+// true bei Erfolg, sonst false (und meldet den Fehler sichtbar dem Nutzer).
+async function schreibMit(name, opFn) {
+  let { error } = await opFn();
+  if (error && istAuthFehler(error)) {
+    const { data: { session } } = await sb.auth.refreshSession();
+    if (session) { ({ error } = await opFn()); }
+  }
+  if (error) {
+    console.error(name + ':', error.message);
+    setSyncStatus('error');
+    if (istAuthFehler(error)) sitzungAbgelaufen();
+    else alert('Speichern fehlgeschlagen: ' + error.message);
+    return false;
+  }
+  setSyncStatus('ok');
+  return true;
+}
 
 // ── ROLLEN ─────────────────────────────────────────────────────────────────
 // Spiegelt die RLS-Policies (rollen_schema.sql) im UI — durchgesetzt wird
@@ -816,16 +871,12 @@ function saveAbwLocal() { localStorage.setItem(ABW_KEY, JSON.stringify(abwesenhe
 
 async function upsertRemote(op) {
   setSyncStatus('connecting');
-  const { error } = await sb.from('op_eingriffe').upsert(op);
-  setSyncStatus(error ? 'error' : 'ok');
-  if (error) console.error('Supabase upsert:', error.message);
+  await schreibMit('Supabase upsert', () => sb.from('op_eingriffe').upsert(op));
 }
 
 async function deleteRemote(id) {
   setSyncStatus('connecting');
-  const { error } = await sb.from('op_eingriffe').delete().eq('id', id);
-  setSyncStatus(error ? 'error' : 'ok');
-  if (error) console.error('Supabase delete:', error.message);
+  await schreibMit('Supabase delete', () => sb.from('op_eingriffe').delete().eq('id', id));
 }
 
 async function loadFromSupabase() {
@@ -840,16 +891,12 @@ async function loadFromSupabase() {
 
 async function upsertAbwRemote(a) {
   setSyncStatus('connecting');
-  const { error } = await sb.from('abwesenheiten').upsert(a);
-  setSyncStatus(error ? 'error' : 'ok');
-  if (error) console.error('Supabase upsert abw:', error.message);
+  await schreibMit('Supabase upsert abw', () => sb.from('abwesenheiten').upsert(a));
 }
 
 async function deleteAbwRemote(id) {
   setSyncStatus('connecting');
-  const { error } = await sb.from('abwesenheiten').delete().eq('id', id);
-  setSyncStatus(error ? 'error' : 'ok');
-  if (error) console.error('Supabase delete abw:', error.message);
+  await schreibMit('Supabase delete abw', () => sb.from('abwesenheiten').delete().eq('id', id));
 }
 
 async function loadAbwFromSupabase() {
