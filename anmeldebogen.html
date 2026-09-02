@@ -151,7 +151,7 @@ select.fill{border:none;border-bottom:1px solid var(--border-strong);background:
   <a href="index.html" title="Zurück zum OP-Plan">← OP-Plan</a>
   <button class="nur-schreib" onclick="neuerBogen()" title="Leeren Bogen">＋ Neu</button>
   <button onclick="druckenPDF()" title="Drucken / als PDF speichern">🖨 Drucken/PDF</button>
-  <button class="nur-schreib" onclick="versenden()" title="Erst speichern + OP-Plan-Eintrag, danach Word-Datei und Mail ans ZBM">✉ Speichern &amp; Versenden</button>
+  <button class="nur-schreib" onclick="versenden()" title="Erst speichern + OP-Plan-Eintrag, danach verschlüsselte Word-Datei und Mail ans ZBM">✉ Speichern &amp; Versenden</button>
   <button class="gold nur-schreib" onclick="speichern()" title="In Datenbank speichern + OP-Plan-Eintrag">💾 Speichern</button>
 </div>
 
@@ -165,10 +165,10 @@ select.fill{border:none;border-bottom:1px solid var(--border-strong);background:
     <h2 style="font-size:16px;color:var(--navy);margin-bottom:.4rem">Bogen gespeichert ✓</h2>
     <p id="versandInfo" style="font-size:12.5px;color:var(--muted);line-height:1.55;margin-bottom:1.1rem"></p>
     <p style="font-size:12.5px;line-height:1.55;margin-bottom:1rem">
-      Für den Versand ans ZBM: <b>zuerst</b> die Word-Datei sichern, <b>dann</b> den Mail-Entwurf öffnen und die Word-Datei dort anhängen.
+      Für den Versand ans ZBM: <b>zuerst</b> die verschlüsselte Word-Datei sichern, <b>dann</b> den Mail-Entwurf öffnen und die Datei dort anhängen. Das ZBM-Passwort liegt separat vor.
     </p>
     <div style="display:flex;flex-direction:column;gap:8px">
-      <button onclick="wordSichern()" style="padding:10px;font-size:13.5px;font-weight:600;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--navy);cursor:pointer">📄 1. Word-Datei sichern</button>
+      <button onclick="wordSichern()" style="padding:10px;font-size:13.5px;font-weight:600;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--navy);cursor:pointer">🔒 1. Verschlüsselte Word-Datei sichern</button>
       <button onclick="mailOeffnen()" style="padding:10px;font-size:13.5px;font-weight:600;border:none;border-radius:6px;background:var(--navy);color:#fff;cursor:pointer">✉ 2. Mail-Entwurf ans ZBM öffnen</button>
       <button onclick="schliesseVersand()" style="padding:9px;font-size:12.5px;border:none;border-radius:6px;background:transparent;color:var(--muted);cursor:pointer">Schließen</button>
     </div>
@@ -1041,245 +1041,6 @@ async function speichern(){
 /* ---------- Drucken / PDF ---------- */
 function druckenPDF(){ window.print(); }
 
-/* ---------- Word-Export ----------
-   Ersetzt das PDF als Ablage-/Anhang-Format (Beschluss 2026-08-09): die Klinik
-   (ZBM) soll den unteren Block "Vom ZBM auszufüllen" direkt am Bildschirm
-   ausfüllen können, ein PDF kann das nicht. Format: .doc (Word-HTML) — ohne
-   externe Bibliothek, öffnet in echtem MS Word als vollständig editierbares
-   Dokument. WICHTIG: Word rendert mit einer alten HTML-Engine; das
-   Bildschirm-CSS (Flex/Grid) wird hier NICHT wiederverwendet, stattdessen ein
-   eigenständiges, tabellenbasiertes Layout mit Inline-Styles gebaut.
-
-   Layout-Update (2026-08-09, auf Wunsch nach dem ersten Live-Test): das reine
-   Auflisten aller Felder untereinander war der Bildschirm-/PDF-Fassung optisch
-   nicht ähnlich genug. Das Layout hier bildet jetzt dieselbe Kästen-/
-   Zweispalten-Gruppierung wie das Formular nach (siehe .block/.two-col im
-   Bildschirm-CSS oben) — nur eben ausschließlich mit verschachtelten
-   <table>-Elementen statt Flex/Grid, weil NUR Tabellen in Word sicher sind. */
-
-/* Roh-HTML-Escaping — die Werte stammen aus Patientendaten-Freitextfeldern,
-   landen hier in einem String, der als Datei-Blob gespeichert wird (kein
-   DOM-Insert, kein XSS-Vektor im Browser selbst) — trotzdem sauber escapen,
-   damit z. B. ein "<" in der Diagnose die Word-Datei nicht verunstaltet. */
-function escWord(s){
-  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-function markWord(b){ return b ? '☒' : '☐'; }
-
-/* Ein Ankreuz-Item als Inline-Text, mehrere pro Zeile aneinanderreihbar. */
-function wMark(label, checked){
-  return markWord(checked)+'&nbsp;'+escWord(label)+'&nbsp;&nbsp;&nbsp;';
-}
-/* Eine volle Label:Wert-Zeile, die die ganze Boxbreite einnimmt (für lange
-   Freitextfelder wie Diagnose, Notiz, 1./2. Operation). */
-function wLine(label, value){
-  return '<div style="margin:3px 0;font-size:10pt">'
-    + '<span style="color:#555;font-size:9pt">'+escWord(label)+'</span> '
-    + '<span style="border-bottom:1px solid #999">'+(escWord(value)||'&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;')+'</span></div>';
-}
-/* Zwei Label:Wert-Paare nebeneinander — die Zweispalten-Entsprechung von
-   .two-col im Bildschirm-Formular, als 4-Spalten-Tabellenzeile. */
-function wPair(l1,v1,l2,v2){
-  return '<tr>'
-    + '<td style="width:15%;padding:2px 6px 2px 0;font-size:9pt;color:#555;vertical-align:top;white-space:nowrap">'+escWord(l1)+'</td>'
-    + '<td style="width:35%;padding:2px 14px 2px 0;font-size:10pt;border-bottom:1px solid #999">'+(escWord(v1)||'&nbsp;')+'</td>'
-    + '<td style="width:15%;padding:2px 6px 2px 0;font-size:9pt;color:#555;vertical-align:top;white-space:nowrap">'+escWord(l2)+'</td>'
-    + '<td style="width:35%;padding:2px 0;font-size:10pt;border-bottom:1px solid #999">'+(escWord(v2)||'&nbsp;')+'</td>'
-    + '</tr>';
-}
-function wPairTable(rowsHtml){ return '<table style="width:100%;border-collapse:collapse;margin-top:2px">'+rowsHtml+'</table>'; }
-
-/* Eine umrandete Box mit Titel — die Entsprechung von .block/.bt. innerHtml ist
-   bewusst freier Inhalt (nicht zwingend <tr>-Zeilen), damit dieselbe Box sowohl
-   Feld-Paare (wPairTable) als auch andere Strukturen (Checkbox-Raster, echte
-   Datentabelle) aufnehmen kann. */
-function wBox(title, innerHtml){
-  return '<table style="width:100%;border:1px solid #c8d0dc;border-collapse:collapse;margin-top:10px"><tr><td style="padding:8px 10px">'
-    + '<div style="font-size:10.5pt;font-weight:bold;color:#0a2240;border-bottom:1.5px solid #0a2240;padding-bottom:3px;margin-bottom:6px">'+escWord(title)+'</div>'
-    + innerHtml
-    + '</td></tr></table>';
-}
-/* Zwei Boxen nebeneinander — die Entsprechung des äußeren .two-col, das im
-   Formular Rehabilitation und Kinder/Korsett als eigene Kästen nebeneinander
-   stellt (siehe Zeile ~324 im Formular-HTML). */
-function wBoxRow(box1, box2){
-  return '<table style="width:100%;border-collapse:collapse"><tr>'
-    + '<td style="width:50%;vertical-align:top;padding:0 5px 0 0">'+box1+'</td>'
-    + '<td style="width:50%;vertical-align:top;padding:0 0 0 5px">'+box2+'</td>'
-    + '</tr></table>';
-}
-
-function baueWordHtml(b){
-  const P = []; // eine Box pro Formular-Abschnitt, am Ende aneinandergehängt
-
-  // ---------- Patient ----------
-  const patientRows =
-      wPair('Name, Vorname', b.p_name, 'Geb.-Datum', b.p_gebdat)
-    + wPair('Geschlecht', b.p_geschlecht, 'Fall-/Aufnahme-Nr.', b.p_fallnr)
-    + wPair('Straße', b.p_strasse, 'PLZ / Ort', b.p_ort)
-    + wPair('Krankenkasse', b.p_kasse, 'Vers.-Nr.', b.p_versnr)
-    + wPair('Kostenträger', b.p_kostentraeger, 'Behandlungskat.', b.p_bkat)
-    + wPair('Tel. Patient', b.tel_pat, 'Wunschmonat / -termin', b.p_wunschtermin);
-  const patientExtra = '<div style="margin-top:6px;font-size:10pt">'
-    + wMark('mit Begleitperson', b.begleitperson) + wMark('Pat. terminieren', b.terminieren) + '</div>';
-  P.push(wBox('Patient', wPairTable(patientRows) + patientExtra));
-
-  // ---------- Dringlichkeit & Eingriff ----------
-  const dringInner =
-      '<div style="font-size:10pt;margin-bottom:4px">'
-        + ['Elektiv','dringlich','Notfall','Warteliste'].map(v=>wMark(v, b.dringlichkeit===v)).join('') + '</div>'
-    + (b.nk_kategorie ? wLine('Kategorie Nebenerkrankungen (A/B/C)', b.nk_kategorie) : '')
-    + wLine('Diagnose', b.diagnose)
-    + wPairTable(wPair('ICD-10', b.icd, 'OPS-Code', b.ops_code))
-    + wLine('1. Operation', b.op1_text)
-    + wLine('2. Operation', b.op2_text)
-    + wPairTable(wPair('OP-Dauer (min)', b.op_dauer, 'Seite', b.seite))
-    + '<div style="font-size:10pt;margin:6px 0 2px"><span style="color:#555;font-size:9pt">Lagerung</span><br>'
-        + ['Bauchlage','Rücken','Seitenlagerung','Halotraktion'].map(v=>wMark(v, b.lagerung===v)).join('') + '</div>'
-    + '<div style="font-size:10pt;margin:4px 0">'+wMark('IONM erforderlich', b.ionm_status==='erforderlich' || (!b.ionm_status && b.ionm))+wMark('kein IONM erforderlich', b.ionm_status==='nicht_erforderlich')+'</div>'
-    + '<div style="font-size:10pt;margin:4px 0"><span style="color:#555;font-size:9pt">Antibiose</span><br>'
-        + wMark('Single shot', b.ab_single_shot) + wMark('Cefuroxim', b.ab_cefuroxim) + '</div>'
-    + wLine('Antibiose sonstiges', b.ab_antibiose_sonst)
-    + wPairTable(wPair('Implantat', b.implantat, 'Implantat bestellen?', b.implantat_bestellen ? 'Ja → sep. Bogen' : 'Nein'))
-    + '<div style="font-size:10pt;margin:6px 0 2px"><span style="color:#555;font-size:9pt">Blut</span><br>'
-        + wMark('Blutgruppe inkl. AK', b.blut_blutgruppe) + wMark('EK bereitstellen', b.blut_ek)
-        + wMark('Cell-Saver', b.blut_cellsaver) + wMark('ICU post OP', b.icu_postop) + '</div>'
-    + wPairTable(wPair('Standardlabor inkl. CRP', markWord(b.lab_standard)+' Ja/Nein', 'erw. Laborparameter', b.lab_zusatz));
-  P.push(wBox('Dringlichkeit & Eingriff', dringInner));
-
-  // ---------- Aufnahme & Planung ----------
-  const aufnInner =
-      '<div style="font-size:10pt;margin-bottom:4px">'
-        + ['stationär','ambulant'].map(v=>wMark(v, b.aufnahmemodus===v)).join('')
-        + wMark('OP i. AOZ möglich', b.aoz_moeglich) + '</div>'
-    + wPairTable(
-        wPair('OP innerhalb', [b.op_innerhalb_wert, b.op_innerhalb_einheit].filter(Boolean).join(' '), 'nicht vor (Tagen)', b.nicht_vor_tagen)
-      + wPair('OP-Datum', b.op_datum, 'Uhrzeit', b.uhrzeit))
-    + '<div style="font-size:10pt;margin:6px 0 4px"><span style="color:#555;font-size:9pt">Aufnahme</span><br>'
-        + ['am OP-Tag','1 Tag vor OP'].map(v=>wMark(v, b.aufnahme_zeitpunkt===v)).join('') + '</div>'
-    + wPairTable(wPair('Verweildauer ca. (Tage)', b.verweildauer_tage, 'präop./postop. Tage', [b.praeop_tage,b.postop_tage].filter(Boolean).join(' / ')))
-    + '<div style="font-size:10pt;margin:6px 0 2px"><span style="color:#555;font-size:9pt">Unterbringung</span><br>'
-        + ['1 Bett','2 Bett','Chefarztwahl'].map(v=>wMark(v, b.unterbringung===v)).join('') + '</div>';
-  P.push(wBox('Aufnahme & Planung', aufnInner));
-
-  // ---------- Rehabilitation | Kinder/Korsett (nebeneinander wie im Formular) ----------
-  const rehaInner =
-      '<div style="font-size:10pt;margin-bottom:4px">'
-        + ['AHB','6 Wo. nach OP','keine'].map(v=>wMark(v, b.reha_art===v)).join('') + '</div>'
-    + wLine('Reha planen ab', b.reha_planen_ab)
-    + wLine('bevorzugt in', b.reha_wunschklinik)
-    + wLine('Sozialdienstinfo durch ZBM am', b.sozialdienst_am);
-  const korsettInner =
-      '<div style="font-size:10pt;margin-bottom:4px">' + wMark('Narkose', b.kind_narkose) + wMark('in Sedierung', b.kind_sedierung) + '</div>'
-    + '<div style="font-size:10pt;margin:4px 0"><span style="color:#555;font-size:9pt">Korsett</span><br>'
-        + ['Ja','Nein'].map(v=>wMark(v, b.korsett===v)).join('') + '</div>'
-    + wLine('Korsett sonstiges', b.korsett_sonstiges);
-  P.push(wBoxRow(wBox('Rehabilitation', rehaInner), wBox('Kinder / Korsett', korsettInner)));
-
-  // ---------- Gerinnung & Medikamente ----------
-  const gerTable = '<table style="width:100%;border-collapse:collapse;margin:4px 0">'
-    + '<tr>'
-      + '<td style="padding:2px 8px 2px 0;font-size:9pt;color:#555;width:26%">Medikament</td>'
-      + '<td style="padding:2px 8px 2px 0;font-size:9pt;color:#555;width:37%">Modus</td>'
-      + '<td style="padding:2px 0;font-size:9pt;color:#555;width:37%">ab</td>'
-    + '</tr>'
-    + '<tr><td style="padding:2px 8px 2px 0;font-size:10pt;border-bottom:1px solid #999">ASS</td>'
-        + '<td style="padding:2px 8px 2px 0;font-size:10pt;border-bottom:1px solid #999">'+(escWord(b.ass_modus)||'&nbsp;')+'</td>'
-        + '<td style="padding:2px 0;font-size:10pt;border-bottom:1px solid #999">'+(escWord(b.ass_ab)||'&nbsp;')+'</td></tr>'
-    + '<tr><td style="padding:2px 8px 2px 0;font-size:10pt;border-bottom:1px solid #999">Clopidogrel / OAK</td>'
-        + '<td style="padding:2px 8px 2px 0;font-size:10pt;border-bottom:1px solid #999">'+(escWord(b.clopi_modus)||'&nbsp;')+'</td>'
-        + '<td style="padding:2px 0;font-size:10pt;border-bottom:1px solid #999">'+(escWord(b.clopi_ab)||'&nbsp;')+'</td></tr>'
-    + '<tr><td style="padding:2px 8px 2px 0;font-size:10pt;border-bottom:1px solid #999">Marcumar</td>'
-        + '<td style="padding:2px 8px 2px 0;font-size:10pt;border-bottom:1px solid #999">'+(escWord(b.marcumar_modus)||'&nbsp;')+'</td>'
-        + '<td style="padding:2px 0;font-size:10pt;border-bottom:1px solid #999">'+(escWord(b.marcumar_ab)||'&nbsp;')+'</td></tr>'
-    + '</table>';
-  const gerInner =
-      '<div style="font-size:10pt">'+wMark('Pat. nimmt keine Medikamente', b.keine_medikamente)+'</div>'
-    + gerTable
-    + wPairTable(
-        wPair('Metformin absetzen', markWord(b.ab_metformin)+' Ja/Nein', 'GLP-1 absetzen', markWord(b.ab_glp)+' Ja/Nein')
-      + wPair('Herzschrittmacher', markWord(b.ab_schrittmacher)+' Ja/Nein', 'präoperativ abführen', markWord(b.praeop_abfuehren)+' Ja/Nein')
-      + wPair('Medikamente sonstiges', b.ab_sonstiges, 'Allergien', b.allergien));
-  P.push(wBox('Gerinnung & Medikamente', gerInner));
-
-  // ---------- Diagnostik anfordern (zweispaltig wie .cbx-grid.two) ----------
-  const diagLeft =
-      wMark('Röntgen', b.d_roentgen)+'<br>'
-    + '&nbsp;&nbsp;&nbsp;'+wMark('HWS', b.d_rx_hws)+wMark('LWS', b.d_rx_lws)+wMark('PAN (Ganzwirbelsäule)', b.d_rx_pan)+'<br>'
-    + wMark('Funktionsaufnahmen', b.d_funktion)+'<br>'
-    + '&nbsp;&nbsp;&nbsp;'+wMark('Bending', b.d_bending)+wMark('Traktionsaufnahme', b.d_traktion)+'<br>'
-    + wMark('CT', b.d_ct)+'<br>'
-    + '&nbsp;&nbsp;&nbsp;'+wMark('CT Navigation WS', b.d_ct_nav);
-  const diagRight =
-      wMark('MRT', b.d_mrt)+'<br>'
-    + '&nbsp;&nbsp;&nbsp;'+wMark('MRT Navigation Kopf', b.d_mrt_navkopf)+wMark('MRT funktionell', b.d_mrt_funkt)+'<br>'
-    + wMark('diagn. Infiltration', b.d_infiltration)+'<br>'
-    + wMark('Myelographie', b.d_myelo)+'<br><br>'
-    + wLine('Sonstiges', b.d_sonstiges);
-  const diagInner = '<table style="width:100%;border-collapse:collapse"><tr>'
-    + '<td style="width:50%;vertical-align:top;padding:0 10px 0 0;font-size:10pt;line-height:1.9">'+diagLeft+'</td>'
-    + '<td style="width:50%;vertical-align:top;padding:0 0 0 10px;font-size:10pt;line-height:1.9;border-left:1px solid #e2e6ec">'+diagRight+'</td>'
-    + '</tr></table>';
-  P.push(wBox('Diagnostik anfordern', diagInner));
-
-  // ---------- Befunde prästationär (echte Datentabelle, wie im Formular) ----------
-  const befDataRow = (label, status, geplant, hz) => '<tr>'
-    + '<td style="padding:3px 8px;border:1px solid #ccc;font-size:9.5pt">'+escWord(label)+'</td>'
-    + '<td style="padding:3px 8px;border:1px solid #ccc;font-size:9.5pt">'+(status==='vorhanden'?'vorhanden':status==='ausstehend'?'ausstehend':'&nbsp;')+'</td>'
-    + '<td style="padding:3px 8px;border:1px solid #ccc;font-size:9.5pt">'+(escWord(geplant)||'&nbsp;')+'</td>'
-    + '<td style="padding:3px 8px;border:1px solid #ccc;font-size:9.5pt">'+(escWord(hz)||'&nbsp;')+'</td>'
-    + '</tr>';
-  const befHead = '<tr>'
-    + '<td style="padding:3px 8px;border:1px solid #ccc;background:#eef1f5;font-size:9pt;font-weight:bold">&nbsp;</td>'
-    + '<td style="padding:3px 8px;border:1px solid #ccc;background:#eef1f5;font-size:9pt;font-weight:bold">Status</td>'
-    + '<td style="padding:3px 8px;border:1px solid #ccc;background:#eef1f5;font-size:9pt;font-weight:bold">geplant am</td>'
-    + '<td style="padding:3px 8px;border:1px solid #ccc;background:#eef1f5;font-size:9pt;font-weight:bold">Hz</td>'
-    + '</tr>';
-  const befRows = befDataRow('Rö', b.bef_ro_status, b.bef_ro_geplant, b.bef_ro_hz)
-    + befDataRow('CT', b.bef_ct_status, b.bef_ct_geplant, b.bef_ct_hz)
-    + befDataRow('MRT', b.bef_mrt_status, b.bef_mrt_geplant, b.bef_mrt_hz)
-    + (b.bef_sonst_label ? befDataRow(b.bef_sonst_label, b.bef_sonst_status, b.bef_sonst_geplant, b.bef_sonst_hz) : '');
-  P.push(wBox('Befunde prästationär', '<table style="width:100%;border-collapse:collapse">'+befHead+befRows+'</table>'));
-
-  // ---------- Bemerkung ----------
-  P.push(wBox('Bemerkung', '<div style="font-size:10pt;min-height:14pt">'+(escWord(b.notiz)||'&nbsp;')+'</div>'));
-
-  // ---------- Anordnender Arzt ----------
-  const arztInner = wPairTable(wPair('Name', b.arzt, 'Tel. / WLAN für Rückfragen', b.arzt_tel))
-    + '<div style="margin-top:16px;font-size:10pt">Unterschrift: ______________________________'
-      + '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Datum: '+(escWord(b.erstellt)||'____________')+'</div>';
-  P.push(wBox('Anordnender Arzt', arztInner));
-
-  /* ---------- ZBM (bewusst LEER — nicht die gespeicherten Werte aus b,
-     sondern leere, editierbare Felder. Genau dieser Block soll die Klinik am
-     Bildschirm ausfüllen, Anlass des Word-Exports). ---------- */
-  const zbmInner = wPairTable(
-      wPair('OPV', '', 'OPV Anästhesie', '')
-    + wPair('OP am', '', 'Tel. Angehörige', '')
-    + wPair('Betreuer', '', '', ''))
-    + '<div style="font-size:8.5pt;color:#555;margin-top:4px">ZBM-Fax Traunstein: 0861/705-2219 · ZBM-Fax Reichenhall: 08651/772619</div>';
-  P.push('<table style="width:100%;border:1px solid #c8d0dc;border-collapse:collapse;margin-top:10px;background:#f4f6fa"><tr><td style="padding:8px 10px">'
-    + '<div style="font-size:10.5pt;font-weight:bold;color:#0a2240;border-bottom:1.5px solid #0a2240;padding-bottom:3px;margin-bottom:6px">Vom ZBM auszufüllen</div>'
-    + zbmInner + '</td></tr></table>');
-
-  const titel = (standort==='traunstein' ? 'Sprechstundenanforderung' : 'Anmeldebogen') + ' Wirbelsäulenchirurgie · Klinikum Traunstein';
-  /* MSO-Pagesetup A4 + WordSection1 ist der von Word erwartete Weg, damit die
-     Seiteneinrichtung beim Öffnen stimmt. UTF-8-BOM + eigenes <meta charset>
-     doppelt absichern — die App-eigene <meta charset> im Kopf des Dokuments
-     gilt nicht für diesen eigenständigen Datei-String. */
-  return '﻿' +
-    '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">'
-    + '<head><meta http-equiv="Content-Type" content="text/html; charset=utf-8"><meta charset="utf-8">'
-    + '<title>'+escWord(titel)+'</title>'
-    + '<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml><![endif]-->'
-    + '<style>@page WordSection1{size:21cm 29.7cm;margin:2cm 1.8cm} div.WordSection1{page:WordSection1} body{font-family:Calibri,Arial,sans-serif}</style>'
-    + '</head><body><div class="WordSection1">'
-    + '<h2 style="color:#0a2240;font-size:14pt;margin:0 0 2px">Wirbelsäulenchirurgie</h2>'
-    + '<div style="font-size:10pt;color:#555;margin-bottom:12px">'+escWord((standort==='traunstein'?'Sprechstundenanforderung / Anmeldung zur operativen Behandlung':'Anmeldebogen'))+' · Klinikum Traunstein (Kliniken Südostbayern AG)</div>'
-    + P.join('')
-    + '</div></body></html>';
-}
-
 /* Dateiname OHNE Klarname (Beschluss 2026-08-09): die Datei geht als Mail-
    Anhang ans ZBM raus, der Dateiname selbst reist damit im Klartext durch
    Mail-Header/-Logs eines fremden Verantwortlichen — anders als der reine
@@ -1309,7 +1070,7 @@ function bogenDateiname(b){
   const anker = String(b.id||'').replace(/\D/g,'').slice(-6) || '000000';
   const roh = [initialen, datum, anker].join('_');
   const sicher = roh.replace(/[\\/:*?"<>|]/g,'').replace(/\s+/g,'_');
-  return sicher + '.doc';
+  return sicher + '.docx';
 }
 
 /* ---------- Ablage im Ordner "OP-Anmeldungen Traunstein" ----------
@@ -1397,13 +1158,45 @@ async function sichereBogenDatei(blob, dateiname){
   }
 }
 
+/* Die Word-Datei entsteht NICHT mehr im Browser (baueWordHtml() war Word-HTML,
+   kein echtes OOXML und daher clientseitig nicht verschlüsselbar). Stattdessen
+   baut und verschlüsselt eine Supabase Edge Function das Dokument serverseitig
+   (echtes AES-256, Passwort liegt nur als Server-Secret ZBM_PASSWORT, nie im
+   Client/Repo) — der Browser bekommt ausschließlich die fertig verschlüsselten
+   Bytes. Es entsteht an keiner Stelle eine unverschlüsselte, versendbare Datei:
+   schlägt der Server-Call fehl, wird NICHTS gesichert (kein Klartext-Fallback),
+   das war die Ursache der wiederholten Versand-Vorfälle mit dem alten .doc-Weg. */
 async function wordSichern(){
   const b = collect();
-  const html = baueWordHtml(b);
-  const blob = new Blob([html], { type:'application/msword' });
   const dateiname = bogenDateiname(b);
+  setState('Verschlüsseltes Dokument wird erstellt …');
+  let resp;
+  try{
+    const { data:{ session } } = await sb.auth.getSession();
+    resp = await fetch(SUPABASE_URL + '/functions/v1/verschluesselter-anmeldebogen', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON,
+        'Authorization': 'Bearer ' + (session?.access_token || SUPABASE_ANON),
+      },
+      body: JSON.stringify({ b, standort }),
+    });
+  }catch(netErr){
+    setState('Fehler — NICHTS wurde gesichert (kein unverschlüsselter Fallback).');
+    alert('Die Verschlüsselung ist ohne Internetverbindung nicht möglich.\nEs wurde bewusst KEINE Datei erzeugt.\n\nFehler: '+netErr.message);
+    return;
+  }
+  if(!resp.ok){
+    let msg = 'Serverfehler ('+resp.status+')';
+    try{ const j = await resp.json(); if(j.error) msg = j.error; }catch(e){}
+    setState('Fehler bei der Verschlüsselung — NICHTS wurde gesichert.');
+    alert('Die verschlüsselte Word-Datei konnte NICHT erstellt werden.\nEs wurde bewusst KEINE unverschlüsselte Datei erzeugt.\n\nFehler: '+msg);
+    return;
+  }
+  const blob = await resp.blob();
   const perOrdner = await sichereBogenDatei(blob, dateiname);
-  setState(perOrdner ? 'Word-Datei in „OP-Anmeldungen Traunstein" gesichert ✓' : 'Word-Datei heruntergeladen ✓');
+  setState(perOrdner ? 'Verschlüsselte Word-Datei in „OP-Anmeldungen Traunstein" gesichert ✓' : 'Verschlüsselte Word-Datei heruntergeladen ✓');
 }
 
 /* ---------- Versenden ----------
@@ -1457,7 +1250,7 @@ function mailOeffnen(){
   const L=[];
   L.push(standort==='traunstein' ? 'SPRECHSTUNDENANFORDERUNG WIRBELSÄULENCHIRURGIE' : 'ANMELDEBOGEN WIRBELSÄULENCHIRURGIE');
   L.push('');
-  L.push('Patientendaten (Name, Geb.-Datum, Kasse, Vers.-Nr.) siehe Word-Datei im Anhang.');
+  L.push('Patientendaten (Name, Geb.-Datum, Kasse, Vers.-Nr.) siehe verschlüsselte Word-Datei im Anhang. Passwort liegt separat vor.');
   L.push('');
   L.push('Dringlichkeit: '+(b.dringlichkeit||'-'));
   L.push('Diagnose: '+(b.diagnose||'-'));
@@ -1479,7 +1272,7 @@ function mailOeffnen(){
   L.push('');
   L.push('Anordnender Arzt: '+b.arzt+(b.arzt_tel?'  ·  Tel. '+b.arzt_tel:''));
   L.push('');
-  L.push('(Hinweis: Bitte die eben gesicherte Word-Datei an diese Mail anhängen.)');
+  L.push('(Hinweis: Bitte die eben gesicherte verschlüsselte Word-Datei an diese Mail anhängen.)');
   const subj=(standort==='traunstein'?'Sprechstundenanforderung Wirbelsäulenchirurgie':'Anmeldebogen Wirbelsäulenchirurgie')+(b.op_datum?' · OP '+b.op_datum:'');
 
   /* In der installierten App (PWA, display-mode standalone) verschluckt Chrome
