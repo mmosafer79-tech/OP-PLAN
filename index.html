@@ -126,6 +126,10 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
    der Chip-Grenzen (nicht negativ), weil .chip/.week-chip overflow:hidden haben. */
 .bogen-versendet-badge{position:absolute;top:2px;right:2px;width:13px;height:13px;border-radius:50%;background:var(--navy);display:flex;align-items:center;justify-content:center;box-shadow:0 1px 2px rgba(0,0,0,.3);pointer-events:none}
 .bogen-versendet-badge svg{width:8px;height:8px;display:block}
+/* Inline-Variante für Tabellenzellen (Warteliste) ohne den absolut positionierten
+   Chip-Kontext — sonst bräuchte jede Zelle position:relative als Anker. */
+.bogen-versendet-pill{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:var(--navy);vertical-align:middle;margin-left:6px}
+.bogen-versendet-pill svg{width:9px;height:9px;display:block}
 .more{font-size:11px;color:var(--text-faint);padding:1px 3px}
 
 /* ABWESENHEITS-BÄNDER (Monat) — schmal, über den OP-Chips, damit sie das
@@ -960,6 +964,7 @@ function bogenVersendet(op){
 }
 const BOGEN_VERSENDET_SVG = '<svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2z" fill="#fff"/></svg>';
 const bogenVersendetBadge = () => `<span class="bogen-versendet-badge" title="Anmeldebogen versendet">${BOGEN_VERSENDET_SVG}</span>`;
+const bogenVersendetPill = () => `<span class="bogen-versendet-pill" title="Anmeldebogen versendet">${BOGEN_VERSENDET_SVG}</span>`;
 
 let nurOhneBogen = false;
 function toggleOhneBogen(){ nurOhneBogen = !nurOhneBogen; render(); }
@@ -1068,7 +1073,7 @@ function renderWarteliste(){
     const prio = o.prioritaet==='notfall' ? '<span class="dp-badge badge-notfall">🔴 Notfall</span>'
                : o.prioritaet==='dringlich' ? '<span class="dp-badge badge-dringlich">🟠 Dringlich</span>' : '';
     return `<tr>
-      <td style="cursor:pointer" onclick="showDetail('${o.id}')"><b>${esc(o.patient||'-')}</b> ${prio}</td>
+      <td style="cursor:pointer" onclick="showDetail('${o.id}')"><b>${esc(o.patient||'-')}</b> ${prio}${bogenVersendet(o)?bogenVersendetPill():''}</td>
       <td>${schreib ? nkSelect(o.id, o.nk_kategorie) : nkBadge(o.nk_kategorie)}</td>
       <td style="cursor:pointer" onclick="showDetail('${o.id}')">${esc(o.diagnose||'')}</td>
       <td style="cursor:pointer" onclick="showDetail('${o.id}')">${esc(o.prozedur||'')}</td>
@@ -1499,7 +1504,16 @@ async function zeigeBogen(op){
   if(!el) return;
   const openId = detailId;                      // Panel könnte zwischenzeitlich wechseln
   const bid = bogenIdOf(op);
-  const anlegen = `<div class="dp-doc none"><a href="anmeldebogen.html" title="Neuen Anmeldebogen anlegen">
+  /* zielFallId verknüpft den neuen Bogen beim Speichern explizit mit DIESEM
+     Kalenderfall (anmeldebogen.html, persist()) — der Link versprach das schon
+     immer ("...und mit diesem Fall verknüpfen"), übergab aber nichts, wodurch
+     jeder so angelegte Bogen als eigener, unverknüpfter Fall landete (Fund
+     2026-09-02, reale Dubletten Jung/Kliemt). Datum/Uhrzeit nur mitgeben, wenn
+     der Kalenderfall welche hat — sonst bliebe das Feld leer (Warteliste-Fall). */
+  const anlegenQS = 'zielFallId='+encodeURIComponent(op.id)
+    + (op.datum ? '&datum='+encodeURIComponent(op.datum) : '')
+    + (op.uhrzeit ? '&uhrzeit='+encodeURIComponent(op.uhrzeit) : '');
+  const anlegen = `<div class="dp-doc none"><a href="anmeldebogen.html?${anlegenQS}" title="Neuen Anmeldebogen anlegen">
       <span class="dp-doc-ico">＋</span>
       <span><span class="dp-doc-name">Kein Anmeldebogen hinterlegt</span>
       <span class="dp-doc-meta">Anlegen und mit diesem Fall verknüpfen</span></span></a></div>`;

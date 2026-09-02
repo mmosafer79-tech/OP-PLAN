@@ -551,6 +551,15 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
 });
 
 let currentId = null;   // id des aktuell geladenen/gespeicherten Bogens
+/* Ziel-Fall, mit dem dieser NEUE Bogen beim Speichern verknüpft werden soll —
+   kommt aus dem "Anlegen"-Link im Falldetail-Panel eines bogenlosen Kalender-
+   fcase-Terminfalls (index.html, zeigeBogen()). Fund 2026-09-02: der Link
+   versprach "Anlegen und mit diesem Fall verknüpfen", übergab aber gar keine
+   Fall-ID — jeder so angelegte Bogen landete als eigenständiger, unverknüpfter
+   Warteliste-Fall statt am angeklickten Termin. Explizite ID statt der
+   bestehenden unscharfen Name+GebDat+Datum-Adoption, weil hier ohnehin kein
+   Datum vorbelegt ist (die unscharfe Heuristik würde also nie greifen). */
+let zielFallId = null;
 
 /* ---------- Auth ---------- */
 async function checkAuth(){
@@ -838,6 +847,7 @@ async function ladeBogen(id){
 function vorbelegenAusURL(){
   const q = new URLSearchParams(location.search);
   if(q.get('id')) return;                       // bestehender Bogen -> ladeAusURL()
+  zielFallId = q.get('zielFallId') || null;      // Verknüpfung mit bestehendem Kalenderfall (s. Deklaration oben)
   if(q.get('warteliste')){                       // bewusst terminlos -> Warteliste
     setR('dring','Warteliste'); syncWarteliste();
     setState('Neuer Fall für die Warteliste — wird ohne OP-Termin gespeichert.');
@@ -845,10 +855,17 @@ function vorbelegenAusURL(){
     return;
   }
   const datum = q.get('datum');
-  if(!datum) return;
+  if(!datum){
+    // Verknüpfter, aber terminloser Kalenderfall (z.B. Warteliste-Altbestand ohne Bogen).
+    if(zielFallId){
+      setState('Neuer Bogen — wird mit bestehendem Kalenderfall verknüpft.');
+      const el = document.getElementById('p_name'); if(el) el.focus();
+    }
+    return;
+  }
   setV('f_opdatum', datum);
   setV('f_uhrzeit', q.get('uhrzeit') || '08:00');
-  setState('Neuer Bogen für den '+datum.split('-').reverse().join('.'));
+  setState((zielFallId ? 'Verknüpfter Bogen' : 'Neuer Bogen') + ' für den '+datum.split('-').reverse().join('.'));
   const el = document.getElementById('p_name'); if(el) el.focus();
 }
 
@@ -915,6 +932,19 @@ async function persist(){
                        .eq('id','op_'+bogen.id).maybeSingle()).data
                  || null;
 
+  let adoptiert = false;
+
+  /* Explizite Verknüpfung über den "Anlegen"-Link im Falldetail-Panel
+     (zielFallId, s. Deklaration oben) — geht der unscharfen Namens-/Datums-
+     Adoption unten vor: hier ist die Zielzeile exakt bekannt, kein Raten
+     nötig, funktioniert auch ganz ohne OP-Datum (Warteliste-Altfall).
+     Nur übernehmen, wenn die Zielzeile wirklich noch bogenlos ist — sonst
+     könnte ein zweimal geöffneter Link einen bereits verknüpften Bogen kapern. */
+  if(!vorhanden && zielFallId){
+    const { data: ziel } = await sb.from('op_eingriffe').select('*').eq('id', zielFallId).maybeSingle();
+    if(ziel && !ziel.bogen_id){ vorhanden = ziel; adoptiert = true; }
+  }
+
   /* Dubletten-Schutz: Steht am selben Tag bereits ein Kalender-Fall zur selben
      Person OHNE Bogen (z. B. direkt bestätigter Termin oder Altbestand), wird er
      ADOPTIERT statt ein zweiter Eintrag angelegt. Sonst entsteht die Dublette
@@ -924,8 +954,8 @@ async function persist(){
      WICHTIG: Geburtsdatum ist PFLICHT für die Adoption. Ohne GebDat würde ein
      reiner Namens-Substring fälschlich adoptieren können („Bauer, Anna" ⊂
      „Bauer, Annabel"). Fehlt das GebDat, lieber KEINE Adoption (harmlose Dublette)
-     als eine falsche Patientenverknüpfung. */
-  let adoptiert = false;
+     als eine falsche Patientenverknüpfung. Läuft nur, wenn zielFallId oben
+     nichts gefunden hat (!vorhanden weiterhin true). */
   if(!vorhanden && bogen.op_datum && bogen.p_name && bogen.p_gebdat){
     const { data: kand } = await sb.from('op_eingriffe').select('*').eq('datum', bogen.op_datum);
     const norm = s => (s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
