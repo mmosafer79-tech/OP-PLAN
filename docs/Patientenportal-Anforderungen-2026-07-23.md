@@ -78,7 +78,7 @@ Für die Ablösung des Papierformulars ist deshalb primär KIM (oder ein Zuweise
 5. Gibt es eine **Schnittstelle oder strukturierten Import/Export**, oder ist der Zugriff ausschließlich über die Oberfläche vorgesehen?
 6. Wie gelangen Portal-Termine in den OP- und Sprechstundenplan — und geht das in beide Richtungen?
 7. **Minderjährige Patienten:** Wie werden Sorgeberechtigte im Portal abgebildet (Zugang, Einwilligung, getrennt lebende Eltern)? Für die Kinderorthopädie ist das der Regelfall, nicht die Ausnahme.
-8. Wie funktioniert der Portalzugang für **internationale Selbstzahler** ohne deutsche Versichertenstruktur?
+8. Wie funktioniert der Portalzugang für **internationale Selbstzahler** ohne deutsche Versichertenstruktur? (Kostenvoranschlags-Prozess/KV-Anforderung an die Patientenverwaltung ist separat dokumentiert, siehe `KV-Anforderung-Kostenvoranschlag-2026-09-08.md`.)
 9. Welche Datenschutzvereinbarungen sind zwischen Praxis (eigenständig Verantwortliche) und KSOB erforderlich, wenn beide Seiten denselben Behandlungspfad bedienen?
 
 ---
