@@ -29,6 +29,9 @@
   --gray: #5f5e5a; --gray-bg: #f1efe8; --gray-chip: #d3d1c7;
   --red: #a32d2d; --red-bg: #fcebeb; --red-chip: #f7c1c1;
   --amber: #854f0b; --amber-bg: #faeeda; --amber-chip: #fac775;
+  /* Stationäre Abklärung: bewusst gefüllter, dunkler Chip (weiße Schrift) statt Pastell —
+     hebt sich klar von den Status-Farben und vom helleren Mosafer-Lila der Abwesenheiten ab. */
+  --violet: #ffffff; --violet-bg: #ede4fb; --violet-chip: #4a1a8c; --violet-text: #4a1a8c;
   /* Abwesenheiten: bewusst außerhalb der Status-Palette, damit ein Urlaubsband
      nie mit "geplant/bestätigt/abgesagt" verwechselt wird. */
   --p-mosafer: #6b46c1;  --p-mosafer-bg: #e4dcf7;
@@ -80,7 +83,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .spacer{flex:1}
 
 /* SUMMARY CARDS */
-.stats-row{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;padding:1.25rem 2rem 0}
+.stats-row{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;padding:1.25rem 2rem 0}
 .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;display:flex;align-items:center;gap:12px}
 .stat-icon{width:38px;height:38px;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
 .stat-val{font-size:22px;font-weight:700;color:var(--navy);line-height:1}
@@ -117,6 +120,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .s-fertig{background:var(--gray-chip);color:var(--gray)}
 .s-abgesagt{background:var(--red-chip);color:var(--red)}
 .s-dringlich{background:var(--amber-chip);color:var(--amber)}
+.s-abklaerung{background:var(--violet-chip);color:var(--violet)}
 /* Fall ohne hinterlegten Anmeldebogen: amberfarbener Innenring (kein Layout-Shift,
    überschreibt die Status-Hintergrundfarbe nicht) zusätzlich zum ⚠ vor dem Namen. */
 .chip.ohne-bogen,.week-chip.ohne-bogen{box-shadow:inset 0 0 0 1.5px var(--amber)}
@@ -276,6 +280,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .badge-abgesagt{background:var(--red-bg);color:var(--red)}
 .badge-notfall{background:#fff3e0;color:#e65100}
 .badge-dringlich{background:var(--amber-bg);color:var(--amber)}
+.badge-abklaerung{background:var(--violet-chip);color:var(--violet)}
 .badge-elektiv{background:var(--bg);color:var(--text-muted)}
 </style>
 <!-- Supabase JS SDK (CDN) -->
@@ -348,6 +353,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
     <option value="">Alle Status</option>
     <option value="geplant">Geplant</option>
     <option value="bestaetigt">Bestätigt</option>
+    <option value="abklaerung">Stationäre Abklärung</option>
     <option value="fertig">Durchgeführt</option>
     <option value="abgesagt">Abgesagt</option>
   </select>
@@ -377,6 +383,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
   <div class="li"><div class="ld" style="background:var(--gray-chip)"></div>Durchgeführt</div>
   <div class="li"><div class="ld" style="background:var(--red-chip)"></div>Abgesagt</div>
   <div class="li"><div class="ld" style="background:var(--amber-chip)"></div>Dringlich / Notfall</div>
+  <div class="li"><div class="ld" style="background:var(--violet-chip)"></div>Stationäre Abklärung</div>
   <div class="li" style="border-left:1px solid var(--border);padding-left:16px;margin-left:4px;color:var(--text-faint)">Abwesend:</div>
   <div class="li" id="legendAbw"></div>
   <div class="li" style="color:var(--text-faint)">Muster: einfarbig = Urlaub · schraffiert = Fortbildung · fein schraffiert = Krank</div>
@@ -509,6 +516,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
         <select id="f_status">
           <option value="geplant">Geplant</option>
           <option value="bestaetigt">Bestätigt</option>
+          <option value="abklaerung">Stationäre Abklärung</option>
           <option value="fertig">Durchgeführt</option>
           <option value="abgesagt">Abgesagt</option>
         </select>
@@ -1072,8 +1080,9 @@ function renderWarteliste(){
     const seit = o.created_at ? new Date(o.created_at).toLocaleDateString('de-DE') : '';
     const prio = o.prioritaet==='notfall' ? '<span class="dp-badge badge-notfall">🔴 Notfall</span>'
                : o.prioritaet==='dringlich' ? '<span class="dp-badge badge-dringlich">🟠 Dringlich</span>' : '';
+    const abkl = o.status==='abklaerung' ? '<span class="dp-badge badge-abklaerung">Stat. Abklärung</span>' : '';
     return `<tr>
-      <td style="cursor:pointer" onclick="showDetail('${o.id}')"><b>${esc(o.patient||'-')}</b> ${prio}${bogenVersendet(o)?bogenVersendetPill():''}</td>
+      <td style="cursor:pointer" onclick="showDetail('${o.id}')"><b>${esc(o.patient||'-')}</b> ${abkl}${prio}${bogenVersendet(o)?bogenVersendetPill():''}</td>
       <td>${schreib ? nkSelect(o.id, o.nk_kategorie) : nkBadge(o.nk_kategorie)}</td>
       <td style="cursor:pointer" onclick="showDetail('${o.id}')">${esc(o.diagnose||'')}</td>
       <td style="cursor:pointer" onclick="showDetail('${o.id}')">${esc(o.prozedur||'')}</td>
@@ -1132,12 +1141,13 @@ function renderStats(){
     const ws = curWeekStart, we = new Date(ws.getTime()+7*86400000);
     return d>=ws && d<we;
   });
-  const cnt = {g:0,b:0,f:0,a:0,dur:0};
+  const cnt = {g:0,b:0,f:0,a:0,k:0,dur:0};
   inView.forEach(o=>{
     if(o.status==='geplant') cnt.g++;
     else if(o.status==='bestaetigt') cnt.b++;
     else if(o.status==='fertig') cnt.f++;
     else if(o.status==='abgesagt') cnt.a++;
+    else if(o.status==='abklaerung') cnt.k++;
     cnt.dur += parseInt(o.dauer)||0;
   });
   const h = Math.floor(cnt.dur/60), m = cnt.dur%60;
@@ -1146,6 +1156,7 @@ function renderStats(){
     <div class="stat-card"><div class="stat-icon" style="background:#e6f1fb;color:#185fa5;font-size:20px">📌</div><div><div class="stat-val" style="color:#185fa5">${cnt.g}</div><div class="stat-lbl">Geplant</div></div></div>
     <div class="stat-card"><div class="stat-icon" style="background:#e1f5ee;color:#0f6e56;font-size:20px">✅</div><div><div class="stat-val" style="color:#0f6e56">${cnt.b+cnt.f}</div><div class="stat-lbl">Bestätigt / Fertig</div></div></div>
     <div class="stat-card"><div class="stat-icon" style="background:#fcebeb;color:#a32d2d;font-size:20px">✗</div><div><div class="stat-val" style="color:#a32d2d">${cnt.a}</div><div class="stat-lbl">Abgesagt</div></div></div>
+    <div class="stat-card"><div class="stat-icon" style="background:var(--violet-bg);color:var(--violet-text);font-size:20px">🔎</div><div><div class="stat-val" style="color:var(--violet-text)">${cnt.k}</div><div class="stat-lbl">Stat. Abklärung</div></div></div>
     <div class="stat-card"><div class="stat-icon" style="background:#faeeda;color:#854f0b;font-size:20px">⏱</div><div><div class="stat-val" style="color:#854f0b">${h}h ${m}m</div><div class="stat-lbl">OP-Zeit gesamt</div></div></div>
   `;
 }
@@ -1155,8 +1166,9 @@ function renderStats(){
    Werte. Whitelist statt roher String-Konkatenation — sonst könnte ein
    manipulierter Status-Wert aus dem class="..."-Attribut ausbrechen (op.status
    landet unescaped in einem HTML-Attribut, nicht nur als Text). */
-const STATUS_KLASSEN = ['geplant','bestaetigt','fertig','abgesagt'];
+const STATUS_KLASSEN = ['geplant','bestaetigt','abklaerung','fertig','abgesagt'];
 function chipClass(op){
+  if(op.status==='abklaerung') return 's-abklaerung';
   if(op.prioritaet==='notfall'||op.prioritaet==='dringlich') return 's-dringlich';
   return 's-'+(STATUS_KLASSEN.includes(op.status) ? op.status : 'geplant');
 }
@@ -1333,11 +1345,13 @@ function renderWeek(){
 }
 
 function chipBg(op){
+  if(op.status==='abklaerung') return 'var(--violet-chip)';
   if(op.prioritaet==='notfall'||op.prioritaet==='dringlich') return 'var(--amber-chip)';
   const m={geplant:'var(--blue-chip)',bestaetigt:'var(--green-chip)',fertig:'var(--gray-chip)',abgesagt:'var(--red-chip)'};
   return m[op.status]||'var(--blue-chip)';
 }
 function chipColor(op){
+  if(op.status==='abklaerung') return 'var(--violet)';
   if(op.prioritaet==='notfall'||op.prioritaet==='dringlich') return 'var(--amber)';
   const m={geplant:'var(--blue)',bestaetigt:'var(--green)',fertig:'var(--gray)',abgesagt:'var(--red)'};
   return m[op.status]||'var(--blue)';
@@ -1446,7 +1460,7 @@ function showDetail(id){
   /* Fallback-Zweig (||s / ||p) zeigt den rohen Status-/Prioritäts-Wert, falls er
      keiner der bekannten Konstanten entspricht (z.B. aus einem CSV-Import ohne
      Validierung) — deshalb escapen, nicht nur bei den bekannten Werten. */
-  const badge=(s)=>{const m={geplant:'badge-geplant',bestaetigt:'badge-bestaetigt',fertig:'badge-fertig',abgesagt:'badge-abgesagt'};return `<span class="dp-badge ${m[s]||''}">${esc({geplant:'Geplant',bestaetigt:'Bestätigt',fertig:'Durchgeführt',abgesagt:'Abgesagt'}[s]||s)}</span>`;};
+  const badge=(s)=>{const m={geplant:'badge-geplant',bestaetigt:'badge-bestaetigt',abklaerung:'badge-abklaerung',fertig:'badge-fertig',abgesagt:'badge-abgesagt'};return `<span class="dp-badge ${m[s]||''}">${esc({geplant:'Geplant',bestaetigt:'Bestätigt',abklaerung:'Stationäre Abklärung',fertig:'Durchgeführt',abgesagt:'Abgesagt'}[s]||s)}</span>`;};
   const pbadge=(p)=>{const m={notfall:'badge-notfall',dringlich:'badge-dringlich',elektiv:'badge-elektiv'};return `<span class="dp-badge ${m[p]||''}" style="margin-left:6px">${esc({notfall:'🔴 Notfall',dringlich:'🟠 Dringlich',elektiv:'Elektiv'}[p]||p)}</span>`;};
   /* Zentraler Punkt für Falldetail-Freitextfelder (Patient, Diagnose, Saal,
      Anästhesie, Implantate, Operateure, Monitoring, Notizen) — row() wird nur
