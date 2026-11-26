@@ -1078,8 +1078,9 @@ function bogenDateiname(b){
    showDirectoryPicker() gewählt und in IndexedDB gemerkt. Die Schreib-
    Berechtigung (readwrite) übersteht KEINEN App-Neustart (Chrome-Vorgabe) —
    pro Sitzung ist daher einmal ein Bestätigungsklick nötig (requestPermission).
-   Deshalb: diese Funktion nur direkt aus einem frischen Button-Klick aufrufen,
-   kein await davor, sonst ist die User-Activation für den Dialog verbraucht.
+   Deshalb: ordnerVorbereiten() direkt zu Beginn des Button-Klicks aufrufen,
+   VOR jedem langsamen await (z. B. Server-Call) — die User-Activation für
+   Ordnerdialog und Berechtigungsabfrage läuft nach wenigen Sekunden ab.
    Fallback (Safari/Firefox, IndexedDB blockiert, Abbruch): normaler Download. */
 const WORD_DIR_DB = 'opplan-word-export', WORD_DIR_STORE = 'handles', WORD_DIR_KEY = 'anmeldungen-traunstein';
 
@@ -1119,12 +1120,12 @@ function downloadFallback(blob, dateiname){
   setTimeout(()=>URL.revokeObjectURL(url), 4000);
 }
 
-/* Schreibt den Blob in den gemerkten Ordner. Gibt true zurück bei Erfolg über
-   die File System Access API, false wenn der Fallback-Download lief. */
-async function sichereBogenDatei(blob, dateiname){
+/* Ordnerwahl + Schreibberechtigung, solange die Klick-Aktivierung frisch ist.
+   Liefert { handle, grund }: handle = beschreibbarer Ordner oder null,
+   grund = Klartext, warum es keinen Ordner gibt (für die Fallback-Meldung). */
+async function ordnerVorbereiten(){
   if(!('showDirectoryPicker' in window)){
-    downloadFallback(blob, dateiname);
-    return false;
+    return { handle:null, grund:'Dieser Browser unterstützt die Ordner-Ablage nicht (bitte Chrome oder Edge verwenden).' };
   }
   try{
     let handle = await idbGetHandle();
@@ -1135,26 +1136,38 @@ async function sichereBogenDatei(blob, dateiname){
     }
     let perm = await handle.queryPermission({ mode:'readwrite' });
     if(perm !== 'granted') perm = await handle.requestPermission({ mode:'readwrite' });
-    if(perm !== 'granted') throw new Error('Schreibrechte für den Ordner wurden nicht erteilt.');
+    if(perm !== 'granted') return { handle:null, grund:'Die Schreibrechte für den Ordner wurden nicht erteilt.' };
+    return { handle, grund:'' };
+  }catch(err){
+    console.warn('Ordner-Vorbereitung fehlgeschlagen:', err);
+    if(err && err.name === 'AbortError') return { handle:null, grund:'Die Ordnerauswahl bzw. Berechtigung wurde abgebrochen.' };
+    return { handle:null, grund:'Der Ordner ist nicht zugreifbar ('+(err && err.message || err)+').' };
+  }
+}
 
-    const fileHandle = await handle.getFileHandle(dateiname, { create:true });
+/* Schreibt den Blob in den vorbereiteten Ordner. Gibt { ok, grund } zurück;
+   ok=false bedeutet: Fallback-Download lief, grund sagt warum. */
+async function sichereBogenDatei(blob, dateiname, ordner){
+  if(!ordner || !ordner.handle){
+    downloadFallback(blob, dateiname);
+    return { ok:false, grund: (ordner && ordner.grund) || 'Kein Zielordner verfügbar.' };
+  }
+  try{
+    const fileHandle = await ordner.handle.getFileHandle(dateiname, { create:true });
     const writable = await fileHandle.createWritable();
     try{
       await writable.write(blob);
     } finally {
       await writable.close();
     }
-    return true;
+    return { ok:true, grund:'' };
   }catch(err){
-    if(err && err.name === 'AbortError'){
-      // Nutzer hat die Ordnerauswahl/Berechtigung abgebrochen -> nichts erzwingen,
-      // aber ohne Datei bleibt der Bogen nicht gesichert -> Fallback anbieten.
-      downloadFallback(blob, dateiname);
-      return false;
-    }
     console.warn('Ablage im Ordner fehlgeschlagen, Fallback-Download:', err);
+    // Ordner gelöscht/umbenannt/verschoben -> gemerkten Handle verwerfen,
+    // beim nächsten Klick wird der Ordner neu abgefragt.
+    await idbSetHandle(null);
     downloadFallback(blob, dateiname);
-    return false;
+    return { ok:false, grund:'Schreiben in den Ordner fehlgeschlagen ('+(err && err.message || err)+'). Bitte beim nächsten Mal den Ordner neu auswählen.' };
   }
 }
 
@@ -1167,6 +1180,9 @@ async function sichereBogenDatei(blob, dateiname){
    schlägt der Server-Call fehl, wird NICHTS gesichert (kein Klartext-Fallback),
    das war die Ursache der wiederholten Versand-Vorfälle mit dem alten .doc-Weg. */
 async function wordSichern(){
+  /* Ordner + Berechtigung ZUERST: der Server-Call unten dauert und würde die
+     Klick-Aktivierung verbrauchen, die der Ordnerdialog braucht. */
+  const ordner = await ordnerVorbereiten();
   const b = collect();
   const dateiname = bogenDateiname(b);
   setState('Verschlüsseltes Dokument wird erstellt …');
@@ -1195,8 +1211,13 @@ async function wordSichern(){
     return;
   }
   const blob = await resp.blob();
-  const perOrdner = await sichereBogenDatei(blob, dateiname);
-  setState(perOrdner ? 'Verschlüsselte Word-Datei in „OP-Anmeldungen Traunstein" gesichert ✓' : 'Verschlüsselte Word-Datei heruntergeladen ✓');
+  const res = await sichereBogenDatei(blob, dateiname, ordner);
+  if(res.ok){
+    setState('Verschlüsselte Word-Datei in „OP-Anmeldungen Traunstein" gesichert ✓');
+  } else {
+    setState('⚠ Datei liegt im Downloads-Ordner, NICHT in „OP-Anmeldungen Traunstein"');
+    alert('Die verschlüsselte Word-Datei wurde NICHT im Ordner „OP-Anmeldungen Traunstein" abgelegt, sondern als normaler Download gespeichert (Downloads-Ordner des Browsers).\n\nGrund: '+res.grund+'\n\nBitte die Datei von dort in den Ordner verschieben.');
+  }
 }
 
 /* ---------- Versenden ----------
