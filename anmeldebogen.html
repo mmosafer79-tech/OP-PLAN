@@ -169,6 +169,7 @@ select.fill{border:none;border-bottom:1px solid var(--border-strong);background:
     </p>
     <div style="display:flex;flex-direction:column;gap:8px">
       <button onclick="wordSichern()" style="padding:10px;font-size:13.5px;font-weight:600;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--navy);cursor:pointer">🔒 1. Verschlüsselte Word-Datei sichern</button>
+      <button onclick="ordnerWechseln()" style="padding:8px;font-size:12.5px;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--muted);cursor:pointer">📁 Ordner wechseln</button>
       <button onclick="mailOeffnen()" style="padding:10px;font-size:13.5px;font-weight:600;border:none;border-radius:6px;background:var(--navy);color:#fff;cursor:pointer">✉ 2. Mail-Entwurf ans ZBM öffnen</button>
       <button onclick="schliesseVersand()" style="padding:9px;font-size:12.5px;border:none;border-radius:6px;background:transparent;color:var(--muted);cursor:pointer">Schließen</button>
     </div>
@@ -1123,12 +1124,12 @@ function downloadFallback(blob, dateiname){
 /* Ordnerwahl + Schreibberechtigung, solange die Klick-Aktivierung frisch ist.
    Liefert { handle, grund }: handle = beschreibbarer Ordner oder null,
    grund = Klartext, warum es keinen Ordner gibt (für die Fallback-Meldung). */
-async function ordnerVorbereiten(){
+async function ordnerVorbereiten(neuWaehlen){
   if(!('showDirectoryPicker' in window)){
     return { handle:null, grund:'Dieser Browser unterstützt die Ordner-Ablage nicht (bitte Chrome oder Edge verwenden).' };
   }
   try{
-    let handle = await idbGetHandle();
+    let handle = neuWaehlen ? null : await idbGetHandle();
     if(!handle){
       handle = await window.showDirectoryPicker({ id:'op-anmeldungen-traunstein', mode:'readwrite',
         startIn:'desktop' });
@@ -1137,7 +1138,7 @@ async function ordnerVorbereiten(){
     let perm = await handle.queryPermission({ mode:'readwrite' });
     if(perm !== 'granted') perm = await handle.requestPermission({ mode:'readwrite' });
     if(perm !== 'granted') return { handle:null, grund:'Die Schreibrechte für den Ordner wurden nicht erteilt.' };
-    return { handle, grund:'' };
+    return { handle, grund:'', name: handle.name };
   }catch(err){
     console.warn('Ordner-Vorbereitung fehlgeschlagen:', err);
     if(err && err.name === 'AbortError') return { handle:null, grund:'Die Ordnerauswahl bzw. Berechtigung wurde abgebrochen.' };
@@ -1160,7 +1161,9 @@ async function sichereBogenDatei(blob, dateiname, ordner){
     } finally {
       await writable.close();
     }
-    return { ok:true, grund:'' };
+    const gespeichert = await fileHandle.getFile();
+    if(gespeichert.size !== blob.size) throw new Error('Die Datei im Ordner ist unvollständig ('+gespeichert.size+' statt '+blob.size+' Byte).');
+    return { ok:true, grund:'', name: ordner.handle.name };
   }catch(err){
     console.warn('Ablage im Ordner fehlgeschlagen, Fallback-Download:', err);
     // Ordner gelöscht/umbenannt/verschoben -> gemerkten Handle verwerfen,
@@ -1168,6 +1171,18 @@ async function sichereBogenDatei(blob, dateiname, ordner){
     await idbSetHandle(null);
     downloadFallback(blob, dateiname);
     return { ok:false, grund:'Schreiben in den Ordner fehlgeschlagen ('+(err && err.message || err)+'). Bitte beim nächsten Mal den Ordner neu auswählen.' };
+  }
+}
+
+/* Ordner bewusst neu wählen (z. B. wenn früher ein falscher Ordner gemerkt wurde).
+   Direkt aus dem Klick aufrufen. */
+async function ordnerWechseln(){
+  const o = await ordnerVorbereiten(true);
+  if(o.handle){
+    setState('Zielordner: „'+o.name+'" — wird für die nächsten Dateien verwendet ✓');
+    alert('Zielordner ist jetzt: „'+o.name+'".');
+  } else {
+    alert('Ordner nicht geändert.\n\nGrund: '+o.grund);
   }
 }
 
@@ -1213,7 +1228,10 @@ async function wordSichern(){
   const blob = await resp.blob();
   const res = await sichereBogenDatei(blob, dateiname, ordner);
   if(res.ok){
-    setState('Verschlüsselte Word-Datei in „OP-Anmeldungen Traunstein" gesichert ✓');
+    setState('Verschlüsselte Word-Datei in Ordner „'+res.name+'" gesichert ✓');
+    if(!/anmeldung/i.test(res.name)){
+      alert('Gesichert im Ordner „'+res.name+'".\n\nFalls das NICHT der Ordner „OP-Anmeldungen Traunstein" ist: im Fenster auf „📁 Ordner wechseln" klicken und den richtigen Ordner wählen.');
+    }
   } else {
     setState('⚠ Datei liegt im Downloads-Ordner, NICHT in „OP-Anmeldungen Traunstein"');
     alert('Die verschlüsselte Word-Datei wurde NICHT im Ordner „OP-Anmeldungen Traunstein" abgelegt, sondern als normaler Download gespeichert (Downloads-Ordner des Browsers).\n\nGrund: '+res.grund+'\n\nBitte die Datei von dort in den Ordner verschieben.');
